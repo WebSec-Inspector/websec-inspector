@@ -6,11 +6,11 @@ A equipe é organizada por responsabilidades, mantendo colaboração entre frent
 
 | Integrante | Papel principal | Responsabilidades |
 |---|---|---|
-| Jaçanã | PM/PO + arquitetura/dados | produto, backlog, requisitos, arquitetura, modelagem e integração das frentes |
+| Jaçanã | PM/PO + Arquitetura | produto, backlog, requisitos, arquitetura, modelagem e integração das frentes |
 | Jonathan Silva | Tech Lead | decisões técnicas, integração entre componentes e orientação de desenvolvimento |
 | Hellen | QA | estratégia de testes, qualidade, validação e automação |
 | Juan | UX/UI | experiência do usuário, fluxos e interface |
-| Murilo | Dados/IA + produto | dados, apoio à definição de produto e classificação |
+| Murilo | Dados/IA + Produto | dados, apoio à definição de produto e classificação |
 | Jonathan Luiz | Dados/IA + Infra | dados, inteligência e apoio às análises |
 | Vitor | Front-end + Dados | implementação e integração da interface web |
 | Gustavo | Back-end | API, regras de negócio e persistência |
