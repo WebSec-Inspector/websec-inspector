@@ -35,7 +35,7 @@ websec-inspector/
 
 ### 1. Pré-requisitos
 
-O projeto é executado pelo Docker Compose. Não é necessário instalar Java, Node.js, Python, PostgreSQL, Redis ou OWASP ZAP separadamente para o ambiente definido neste repositório: esses componentes são fornecidos pelos próprios containers e imagens do `docker-compose.yml`.
+É necessário estar habilitado a virtualização na BIOS. O projeto é executado pelo Docker Compose. Não é necessário instalar Java, Node.js, Python, PostgreSQL, Redis ou OWASP ZAP separadamente para o ambiente definido neste repositório: esses componentes são fornecidos pelos próprios containers e imagens do `docker-compose.yml`.
 
 #### Windows
 
