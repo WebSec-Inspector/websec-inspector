@@ -1,0 +1,138 @@
+name: websec-production
+
+x-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+x-database: &database
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_NAME: websec
+  DB_USER: websec
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the server .env}
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+
+services:
+  postgres:
+    <<: *defaults
+    image: postgres:16-alpine
+    mem_limit: ${POSTGRES_MEMORY_LIMIT:-256m}
+    environment:
+      POSTGRES_DB: websec
+      POSTGRES_USER: websec
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the server .env}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U websec -d websec"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    <<: *defaults
+    image: redis:7-alpine
+    mem_limit: ${REDIS_MEMORY_LIMIT:-128m}
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  zap:
+    <<: *defaults
+    image: zaproxy/zap-stable
+    mem_limit: ${ZAP_MEMORY_LIMIT:-1536m}
+    cpus: ${ZAP_CPU_LIMIT:-1.0}
+    command: [zap.sh, "-Xmx${ZAP_HEAP_SIZE:-1024m}", -daemon, -host, 0.0.0.0, -port, "8090", -config, api.disablekey=true, -config, "api.addrs.addr.name=.*", -config, api.addrs.addr.regex=true]
+    healthcheck:
+      test: [CMD, curl, -sf, "http://localhost:8090/JSON/core/view/version/"]
+      interval: 30s
+      timeout: 10s
+      retries: 15
+      start_period: 120s
+
+  mailpit:
+    <<: *defaults
+    image: axllent/mailpit:v1.29.5
+    mem_limit: ${MAILPIT_MEMORY_LIMIT:-128m}
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "100"
+    volumes: [mailpit_data:/data]
+
+  backend:
+    <<: *defaults
+    image: ghcr.io/websec-inspector/websec-inspector-backend:${IMAGE_TAG:?Set IMAGE_TAG to an immutable commit tag}
+    mem_limit: ${BACKEND_MEMORY_LIMIT:-768m}
+    cpus: ${BACKEND_CPU_LIMIT:-0.75}
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      <<: *database
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the server .env}
+      JAVA_TOOL_OPTIONS: ${BACKEND_JAVA_TOOL_OPTIONS:--XX:InitialRAMPercentage=10.0 -XX:MaxRAMPercentage=65.0}
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    healthcheck:
+      test: [CMD, curl, -fsS, "http://localhost:8080/v3/api-docs"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+
+  worker:
+    <<: *defaults
+    image: ghcr.io/websec-inspector/websec-inspector-worker:${IMAGE_TAG:?Set IMAGE_TAG to an immutable commit tag}
+    mem_limit: ${WORKER_MEMORY_LIMIT:-256m}
+    cpus: ${WORKER_CPU_LIMIT:-0.5}
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      zap: {condition: service_healthy}
+    environment:
+      <<: *database
+      ZAP_API_URL: http://zap:8090
+      REPORTS_DIR: /data/reports
+      PYTHONUNBUFFERED: "1"
+    volumes: [reports_data:/data/reports]
+
+  frontend:
+    <<: *defaults
+    image: ghcr.io/websec-inspector/websec-inspector-frontend:${IMAGE_TAG:?Set IMAGE_TAG to an immutable commit tag}
+    mem_limit: ${FRONTEND_MEMORY_LIMIT:-64m}
+    depends_on:
+      backend: {condition: service_healthy}
+
+  caddy:
+    <<: *defaults
+    image: caddy:2.11.2-alpine
+    mem_limit: ${CADDY_MEMORY_LIMIT:-128m}
+    environment:
+      SITE_HOST: ${SITE_HOST:?Set SITE_HOST in the server .env}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ${RELEASE_DIR:?Set RELEASE_DIR to the activated release}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  postgres_data:
+  redis_data:
+  reports_data:
+  mailpit_data:
+  caddy_data:
+  caddy_config:
