@@ -83,7 +83,23 @@ concorrência do deploy e `flock` continuam protegendo as atualizações.
 
 Operação, backups e limite de rollback seguem os procedimentos de
 [operação da VM](oracle-cloud.md#atualizar-parar-e-recuperar).
-Depois da publicação, verificar HTTPS sem ignorar TLS, SPA, cadastro/login,
-versão publicada, serviços saudáveis e persistência. Não iniciar scans contra
-terceiros durante validação. Host preparado: `18-225-177-140.sslip.io`;
-a publicação e a verificação HTTPS ainda estão pendentes.
+## Publicação verificada em 04/10/2026
+
+Aplicação: **https://18-225-177-140.sslip.io**. O PR #44 foi integrado em `main`
+como `5503431589ce9078b36e7223938682e72ab8dbd0` e o
+[primeiro pipeline de produção](https://github.com/WebSec-Inspector/websec-inspector/actions/runs/37218681469)
+terminou com sucesso, incluindo publicação das três imagens e implantação via SSH.
+HTTPS foi validado sem ignorar certificados; `/`, `/login` e `/version.txt`
+responderam 200, com o SHA publicado correto. Cadastro e login pela API funcionaram.
+
+Os oito containers estavam ativos, sem OOM e sem reinícios inesperados.
+A amostra inicial em repouso ficou em aproximadamente 853 MiB de memória
+dos containers, com cada serviço abaixo de 0,4% de CPU naquele instante.
+São medições pontuais; o consumo durante varreduras ainda precisa ser observado.
+Um backup PostgreSQL foi restaurado em banco isolado, conferindo o usuário de
+validação, e o arquivo de relatórios foi validado. Nenhuma varredura de terceiro
+foi iniciada. Mailpit captura e-mails internamente; não entrega e-mail real.
+
+Pushes e merges em `main` executam testes, publicam imagens pelo SHA e atualizam
+a VM automaticamente. Para uma atualização manual, executar o workflow CI/CD
+em `main`; isso fornece também a credencial temporária para imagens privadas.
