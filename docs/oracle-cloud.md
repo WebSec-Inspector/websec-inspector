@@ -81,11 +81,10 @@ Após integrar o PR em `main`, criar ambiente `production`:
 
 A ausência de `DEPLOY_ENABLED=true` mantém o deploy desativado.
 Nenhuma chave, segredo de banco ou JWT é transferido pelo checkout.
-Antes de habilitar, confirmar que as três imagens são acessíveis na VM:
-pacotes GHCR novos podem ser privados. Se permanecerem privados, usar
-credencial com somente `read:packages` no servidor via `docker login
-ghcr.io --password-stdin` como `websec`, sem colocar token no comando,
-chat ou Git. Não usar o `GITHUB_TOKEN` temporário como credencial permanente.
+Pacotes GHCR novos podem ser privados. O job usa `GITHUB_TOKEN` com
+`packages: read`, enviado por stdin via SSH a `docker login --password-stdin`.
+Um diretório Docker temporário é removido ao final, inclusive em falhas.
+Não instalar PAT nem `GITHUB_TOKEN` como credencial permanente no servidor.
 
 O job aguarda toda a matriz de imagens, valida SSH estritamente, transfere
 somente quatro arquivos de release e ativa o diretório por rename.

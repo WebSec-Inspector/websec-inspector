@@ -47,4 +47,4 @@ printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' > /etc/ssh
 sshd -t
 systemctl reload ssh
 docker compose version
-echo 'Bootstrap complete. Configure OCI and host firewall, verify host keys and GHCR access before deploying.'
+echo 'Bootstrap complete. Configure cloud and host firewall, verify host keys and GHCR access before deploying.'

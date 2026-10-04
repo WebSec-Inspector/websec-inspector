@@ -11,8 +11,9 @@ a opção ARM64 para uma futura VM Oracle. A configuração AWS usa AMD64.
 
 No console, a conta está no **Free account plan**, com US$ 100 de saldo
 e término previsto em 04/04/2027, ou antes se os créditos acabarem.
-Não fazer upgrade para Paid plan. A VM ainda não foi criada:
-a abertura de acesso público e por chave requer confirmação antes do lançamento.
+Não fazer upgrade para Paid plan. O usuário confirmou a configuração e a
+VM `i-0a9d09af2eaac9adb` foi criada, com IPv4 `18.225.177.140` e IMDSv2 obrigatório.
+Docker foi instalado e o acesso administrativo e de deploy foi validado.
 
 | Recurso | Seleção |
 | --- | --- |
@@ -60,8 +61,9 @@ sudo bash bootstrap.sh <IP-com-hifens>.sslip.io deploy.pub
 ```
 
 Conferir Docker, Compose, disco, segredos modo 600, portas e resolução DNS.
-Validar acesso às três imagens no GHCR como `websec`; caso privadas, usar
-somente `read:packages` e `docker login --password-stdin`, sem expor token.
+O job de deploy usa `GITHUB_TOKEN` com `packages: read` para baixar imagens
+privadas via SSH e `docker login --password-stdin`. A configuração Docker
+temporária é removida ao final, inclusive em falhas; não há PAT permanente na VM.
 Configurar ambiente GitHub `production`:
 
 | Tipo | Nome | Valor |
@@ -83,4 +85,5 @@ Operação, backups e limite de rollback seguem os procedimentos de
 [operação da VM](oracle-cloud.md#atualizar-parar-e-recuperar).
 Depois da publicação, verificar HTTPS sem ignorar TLS, SPA, cadastro/login,
 versão publicada, serviços saudáveis e persistência. Não iniciar scans contra
-terceiros durante validação. Ainda não há URL pública ou verificação AWS concluída.
+terceiros durante validação. Host preparado: `18-225-177-140.sslip.io`;
+a publicação e a verificação HTTPS ainda estão pendentes.

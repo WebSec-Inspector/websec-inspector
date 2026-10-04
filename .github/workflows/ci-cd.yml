@@ -178,6 +178,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      packages: read
     concurrency:
       group: production
       cancel-in-progress: false
@@ -220,12 +223,15 @@ jobs:
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
           REVISION: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
           [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
           [[ "$REVISION" =~ ^[a-f0-9]{40}$ ]]
           [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$GHCR_USER" =~ ^[a-zA-Z0-9_-]+$ ]]
           destination="$DEPLOY_USER@$DEPLOY_HOST"
           incoming="/opt/websec-inspector/releases/.incoming-$REVISION-$RUN_ID"
           release="/opt/websec-inspector/releases/$REVISION"
@@ -234,8 +240,14 @@ jobs:
           # shellcheck disable=SC2029
           ssh "${options[@]}" "$destination" "mkdir -p '$incoming'"
           scp "${options[@]}" infra/production/{compose.yml,Caddyfile,deploy.sh,backup.sh} "$destination:$incoming/"
+          # The job token is sent through encrypted stdin and removed from the VM after deployment.
+          remote="set -e; if [ -d '$release' ]; then diff -r '$incoming' '$release'; rm -r '$incoming'; else mv '$incoming' '$release'; fi"
+          # Variables below intentionally expand only on the VM.
+          # shellcheck disable=SC2016
+          remote+='; umask 077; export DOCKER_CONFIG=$(mktemp -d); trap '\''rm -f "$DOCKER_CONFIG/config.json"; rmdir "$DOCKER_CONFIG"'\'' EXIT'
+          remote+="; docker login ghcr.io -u '$GHCR_USER' --password-stdin; bash '$release/deploy.sh' '$REVISION'"
           # shellcheck disable=SC2029
-          ssh "${options[@]}" "$destination" "set -e; if [ -d '$release' ]; then diff -r '$incoming' '$release'; rm -r '$incoming'; else mv '$incoming' '$release'; fi; bash '$release/deploy.sh' '$REVISION'"
+          printf '%s' "$GHCR_TOKEN" | ssh "${options[@]}" "$destination" "$remote"
 
       - name: Remove SSH identity
         if: always()
