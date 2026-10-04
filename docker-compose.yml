@@ -1,6 +1,14 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:16-alpine
+    mem_limit: ${POSTGRES_MEMORY_LIMIT:-256m}
+    logging: *default-logging
     environment:
       POSTGRES_DB: websec
       POSTGRES_USER: websec
@@ -12,13 +20,19 @@ services:
 
   redis:
     image: redis:7-alpine
+    mem_limit: ${REDIS_MEMORY_LIMIT:-128m}
+    logging: *default-logging
     ports:
       - "6379:6379"
 
   zap:
     image: zaproxy/zap-stable
+    mem_limit: ${ZAP_MEMORY_LIMIT:-1536m}
+    cpus: ${ZAP_CPU_LIMIT:-2.0}
+    logging: *default-logging
     command:
       - zap.sh
+      - -Xmx${ZAP_HEAP_SIZE:-1024m}
       - -daemon
       - -host
       - 0.0.0.0
@@ -34,17 +48,21 @@ services:
       - "8090:8090"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8090/JSON/core/view/version/"]
-      interval: 10s
+      interval: 30s
       timeout: 10s
       retries: 60
       start_period: 120s
 
   backend:
     build: ./backend
+    mem_limit: ${BACKEND_MEMORY_LIMIT:-768m}
+    cpus: ${BACKEND_CPU_LIMIT:-1.0}
+    logging: *default-logging
     depends_on:
       - postgres
       - redis
     environment:
+      JAVA_TOOL_OPTIONS: ${BACKEND_JAVA_TOOL_OPTIONS:--XX:InitialRAMPercentage=10.0 -XX:MaxRAMPercentage=65.0}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: websec
@@ -60,6 +78,9 @@ services:
 
   worker:
     build: ./worker
+    mem_limit: ${WORKER_MEMORY_LIMIT:-256m}
+    cpus: ${WORKER_CPU_LIMIT:-0.5}
+    logging: *default-logging
     depends_on:
       postgres:
         condition: service_started
@@ -84,6 +105,8 @@ services:
 
   frontend:
     build: ./frontend
+    mem_limit: ${FRONTEND_MEMORY_LIMIT:-128m}
+    logging: *default-logging
     environment:
       VITE_API_URL: http://localhost:8080/api
     ports:
@@ -93,12 +116,21 @@ services:
 
   mailhog:
     image: mailhog/mailhog
+    mem_limit: ${MAILHOG_MEMORY_LIMIT:-64m}
+    logging: *default-logging
     ports:
       - "8025:8025" # UI web para inspecionar e-mails enviados em Dev
       - "1025:1025"
 
   prometheus:
     image: prom/prometheus
+    profiles: ["monitoring"]
+    mem_limit: ${PROMETHEUS_MEMORY_LIMIT:-256m}
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=3d
+      - --storage.tsdb.retention.size=256MB
     volumes:
       - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
@@ -106,6 +138,9 @@ services:
 
   grafana:
     image: grafana/grafana
+    profiles: ["monitoring"]
+    mem_limit: ${GRAFANA_MEMORY_LIMIT:-512m}
+    logging: *default-logging
     ports:
       - "3000:3000"
     depends_on:

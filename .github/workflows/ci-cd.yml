@@ -12,10 +12,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: websec-inspector-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   backend:
     name: CI - Backend
@@ -93,18 +89,30 @@ jobs:
       - name: Validate Compose
         run: docker compose config --quiet
 
+      - name: Validate production deployment
+        env:
+          SITE_HOST: validation.example.com
+          POSTGRES_PASSWORD: validation-only
+          JWT_SECRET: validation-only-not-a-production-secret
+          IMAGE_TAG: sha-${{ github.sha }}
+          RELEASE_DIR: ${{ github.workspace }}/infra/production
+        run: |
+          docker compose -f infra/production/compose.yml config --quiet
+          bash -n infra/production/deploy.sh infra/production/backup.sh infra/production/bootstrap.sh
+          python3 -m unittest discover -s infra/production/tests -v
+
       - name: Build application images
         run: docker compose build backend frontend worker
 
   publish:
     name: CD - Publish images
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs:
       - backend
       - frontend
       - worker
       - containers
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     permissions:
       contents: read
@@ -146,16 +154,89 @@ jobs:
           images: ${{ matrix.image }}
           tags: |
             type=raw,value=latest
-            type=sha,prefix=sha-
+            type=raw,value=sha-${{ github.sha }}
 
       - name: Build and publish ${{ matrix.component }}
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           push: true
+          platforms: linux/arm64
+          build-args: |
+            VITE_API_URL=/api
+            APP_REVISION=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
           provenance: true
           sbom: true
+
+  deploy:
+    name: CD - Oracle production
+    needs: publish
+    if: github.ref == 'refs/heads/main' && vars.OCI_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: oracle-production
+    concurrency:
+      group: oracle-production
+      cancel-in-progress: false
+    steps:
+      - name: Checkout deployed revision
+        uses: actions/checkout@v4
+
+      - name: Reject superseded automatic deployment
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$EVENT_NAME" == push && "$head" != "$REVISION" ]]; then
+            echo 'Superseded commit: deployment skipped.'
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure verified SSH access
+        if: steps.freshness.outputs.deploy == 'true'
+        env:
+          SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.OCI_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/oci_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/oci_deploy ~/.ssh/known_hosts
+
+      - name: Transfer immutable release and deploy
+        if: steps.freshness.outputs.deploy == 'true'
+        env:
+          OCI_HOST: ${{ vars.OCI_HOST }}
+          OCI_USER: ${{ vars.OCI_USER }}
+          REVISION: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$OCI_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          [[ "$OCI_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$REVISION" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          destination="$OCI_USER@$OCI_HOST"
+          incoming="/opt/websec-inspector/releases/.incoming-$REVISION-$RUN_ID"
+          release="/opt/websec-inspector/releases/$REVISION"
+          options=(-i ~/.ssh/oci_deploy -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
+          # Paths intentionally expand locally after validating SHA and run ID.
+          # shellcheck disable=SC2029
+          ssh "${options[@]}" "$destination" "mkdir -p '$incoming'"
+          scp "${options[@]}" infra/production/{compose.yml,Caddyfile,deploy.sh,backup.sh} "$destination:$incoming/"
+          # shellcheck disable=SC2029
+          ssh "${options[@]}" "$destination" "set -e; if [ -d '$release' ]; then diff -r '$incoming' '$release'; rm -r '$incoming'; else mv '$incoming' '$release'; fi; bash '$release/deploy.sh' '$REVISION'"
+
+      - name: Remove SSH identity
+        if: always()
+        run: rm -f ~/.ssh/oci_deploy ~/.ssh/known_hosts

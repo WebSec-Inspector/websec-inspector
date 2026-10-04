@@ -156,6 +156,8 @@ A aplicação frontend conversa com a API. A API grava os dados no PostgreSQL e 
 
 ## Documentação
 
+- [`docs/oracle-cloud.md`](docs/oracle-cloud.md) — infraestrutura gratuita, deploy e CI/CD; publicação pendente de capacidade A1 na Oracle.
+
 - [`docs/arquitetura.md`](docs/arquitetura.md) — arquitetura, fluxo e decisões técnicas.
 - [`docs/equipe.md`](docs/equipe.md) — designação técnica, organização das responsabilidades.
 - [`docs/requisitos.md`](docs/requisitos.md) — requisitos funcionais, não funcionais e de segurança.
