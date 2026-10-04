@@ -112,7 +112,7 @@ jobs:
       - frontend
       - worker
       - containers
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ vars.DEPLOY_ARCH == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
 
     permissions:
       contents: read
@@ -161,7 +161,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: true
-          platforms: linux/arm64
+          platforms: linux/${{ vars.DEPLOY_ARCH || 'amd64' }}
           build-args: |
             VITE_API_URL=/api
             APP_REVISION=${{ github.sha }}
@@ -173,13 +173,13 @@ jobs:
           sbom: true
 
   deploy:
-    name: CD - Oracle production
+    name: CD - Production VM
     needs: publish
-    if: github.ref == 'refs/heads/main' && vars.OCI_DEPLOY_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
-    environment: oracle-production
+    environment: production
     concurrency:
-      group: oracle-production
+      group: production
       cancel-in-progress: false
     steps:
       - name: Checkout deployed revision
@@ -204,32 +204,32 @@ jobs:
       - name: Configure verified SSH access
         if: steps.freshness.outputs.deploy == 'true'
         env:
-          SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.OCI_KNOWN_HOSTS }}
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
           test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/oci_deploy
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/vm_deploy
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/oci_deploy ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/vm_deploy ~/.ssh/known_hosts
 
       - name: Transfer immutable release and deploy
         if: steps.freshness.outputs.deploy == 'true'
         env:
-          OCI_HOST: ${{ vars.OCI_HOST }}
-          OCI_USER: ${{ vars.OCI_USER }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
           REVISION: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
-          [[ "$OCI_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
-          [[ "$OCI_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
           [[ "$REVISION" =~ ^[a-f0-9]{40}$ ]]
           [[ "$RUN_ID" =~ ^[0-9]+$ ]]
-          destination="$OCI_USER@$OCI_HOST"
+          destination="$DEPLOY_USER@$DEPLOY_HOST"
           incoming="/opt/websec-inspector/releases/.incoming-$REVISION-$RUN_ID"
           release="/opt/websec-inspector/releases/$REVISION"
-          options=(-i ~/.ssh/oci_deploy -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
+          options=(-i ~/.ssh/vm_deploy -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
           # Paths intentionally expand locally after validating SHA and run ID.
           # shellcheck disable=SC2029
           ssh "${options[@]}" "$destination" "mkdir -p '$incoming'"
@@ -239,4 +239,4 @@ jobs:
 
       - name: Remove SSH identity
         if: always()
-        run: rm -f ~/.ssh/oci_deploy ~/.ssh/known_hosts
+        run: rm -f ~/.ssh/vm_deploy ~/.ssh/known_hosts

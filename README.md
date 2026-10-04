@@ -156,6 +156,8 @@ A aplicação frontend conversa com a API. A API grava os dados no PostgreSQL e 
 
 ## Documentação
 
+- [`docs/aws-cloud.md`](docs/aws-cloud.md) — publicação na AWS usando créditos, configuração e custos.
+
 - [`docs/oracle-cloud.md`](docs/oracle-cloud.md) — infraestrutura gratuita, deploy e CI/CD; publicação pendente de capacidade A1 na Oracle.
 
 - [`docs/arquitetura.md`](docs/arquitetura.md) — arquitetura, fluxo e decisões técnicas.

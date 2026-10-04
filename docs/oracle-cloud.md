@@ -65,21 +65,21 @@ se o IP mudar, atualizar hostname e configuração antes de novo deploy.
 
 O workflow preserva testes de backend/frontend/worker e build local,
 valida Compose e roda oito testes do script de deploy. Publicação ocorre
-somente em push de `main` ou execução manual em `main`. Cada um dos três
+somente em push de `main` ou execução manual em `main`. Com DEPLOY_ARCH=arm64, cada um dos três
 componentes publica imagem ARM64 com tag `sha-<SHA completo>` e `latest`;
 o deploy usa exclusivamente a tag por SHA.
 
-Após integrar o PR em `main`, criar ambiente `oracle-production`:
+Após integrar o PR em `main`, criar ambiente `production`:
 
 | Tipo | Nome | Conteúdo |
 | --- | --- | --- |
-| Secret do ambiente | `OCI_SSH_KEY` | Privada dedicada do usuário websec |
-| Secret do ambiente | `OCI_KNOWN_HOSTS` | Linha known_hosts do IPv4 validado pelo console |
-| Variable do ambiente | `OCI_HOST` | IPv4 público |
-| Variable do ambiente | `OCI_USER` | `websec` |
-| Variable do repositório | `OCI_DEPLOY_ENABLED` | `true` somente após preparar a VM |
+| Secret do ambiente | `DEPLOY_SSH_KEY` | Privada dedicada do usuário websec |
+| Secret do ambiente | `DEPLOY_KNOWN_HOSTS` | Linha known_hosts do IPv4 validado pelo console |
+| Variable do ambiente | `DEPLOY_HOST` | IPv4 público |
+| Variable do ambiente | `DEPLOY_USER` | `websec` |
+| Variable do repositório | `DEPLOY_ENABLED` | `true` somente após preparar a VM |
 
-A ausência de `OCI_DEPLOY_ENABLED=true` mantém o deploy desativado.
+A ausência de `DEPLOY_ENABLED=true` mantém o deploy desativado.
 Nenhuma chave, segredo de banco ou JWT é transferido pelo checkout.
 Antes de habilitar, confirmar que as três imagens são acessíveis na VM:
 pacotes GHCR novos podem ser privados. Se permanecerem privados, usar
