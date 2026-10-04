@@ -56,7 +56,7 @@ padrão do firewall inteiro; adicionar somente as permissões necessárias.
    `websec`. Nova sessão SSH é necessária após adicionar o grupo Docker.
 
 Configuração de produção fica somente no servidor. O exemplo
-`infra/production/production.env.example` mostra as variáveis; não substituir
+`infra/production/.env.example` mostra as variáveis; não substituir
 senhas do servidor pelos exemplos. Caddy provisiona HTTPS automaticamente
 quando DNS e portas 80/443 estiverem acessíveis. sslip.io depende do IPv4;
 se o IP mudar, atualizar hostname e configuração antes de novo deploy.
