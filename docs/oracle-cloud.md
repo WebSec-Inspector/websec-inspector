@@ -114,13 +114,14 @@ Como `websec`, para consultar/parar sem remover volumes:
 cd /opt/websec-inspector
 release=$(sed -n 's/^RELEASE_DIR=//p' .release.env)
 docker compose -p websec-production --env-file .env --env-file .release.env -f "$release/compose.yml" ps
-docker compose -p websec-production --env-file .env --env-file .release.env -f "$release/compose.yml" stop
 bash "$release/backup.sh"
+docker compose -p websec-production --env-file .env --env-file .release.env -f "$release/compose.yml" stop
 ```
 
 Para retomar a versão atual, usar o mesmo Compose com `up -d --wait
 --wait-timeout 600`. Para reimplantar uma versão já transferida, executar
-`bash releases/<SHA>/deploy.sh <SHA>`.
+`bash releases/<SHA>/deploy.sh <SHA>` com autenticação GHCR temporária quando
+as imagens forem privadas; preferir executar o workflow CI/CD em `main`.
 
 Backups ficam em `backups/`, com últimos sete conjuntos locais. Copiar
 periodicamente para armazenamento fora da VM via SCP; backup no mesmo
