@@ -1,0 +1,3 @@
+# A aprovação de um destes responsáveis é exigida para alterações na main.
+# A exceção de merge sem aprovação é configurada no ruleset do GitHub.
+* @JonathanSM-dev @JacanaFSilva
