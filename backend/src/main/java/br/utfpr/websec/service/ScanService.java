@@ -139,10 +139,20 @@ public class ScanService {
                 .toList();
     }
 
+    /** RF — domínios do usuário autenticado, origem do domainId no frontend. */
+    public List<DomainResponse> listDomains(String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new IllegalStateException("Usuário não encontrado"));
+        return domainRepository.findByUserIdOrderByHostnameAsc(user.getId()).stream()
+                .map(d -> new DomainResponse(d.getId(), d.getHostname(), d.isVerified(), d.getVerifiedAt()))
+                .toList();
+    }
+
     private ScanResponse toResponse(Scan scan, List<FindingResponse> findings) {
         Domain domain = scan.getDomain();
         return new ScanResponse(
                 scan.getId(),
+                domain.getId(),
                 domain.getHostname(),
                 scan.getStatus().name(),
                 scan.getStatus() == Scan.Status.PENDING_VERIFICATION ? domain.getVerificationToken() : null,
