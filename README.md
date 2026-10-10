@@ -118,6 +118,7 @@ docker compose up -d
 
 | Serviço | Endereço |
 |---|---|
+| Websec Inspector | https://18-225-177-140.sslip.io/login |
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:8080 |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
