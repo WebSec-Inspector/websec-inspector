@@ -23,6 +23,8 @@ websec:
   jwt:
     secret: ${JWT_SECRET:troque-este-segredo-em-producao-troque-este-segredo}
     expiration-ms: 86400000
+  security:
+    dev-bypass-enabled: ${WEBSEC_DEV_BYPASS_ENABLED:false}
 
 server:
   port: 8080

@@ -31,6 +31,8 @@ public class AuthService {
         user.setName(request.name());
         user.setEmail(request.email());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
+        // O cadastro público sempre cria CLIENTE; o cliente nunca escolhe seu próprio perfil.
+        user.setRole(User.Role.CLIENTE);
         userRepository.save(user);
         return new AuthResponse(jwtService.generateToken(user.getEmail()));
     }

@@ -15,11 +15,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    if (err.response?.status === 401 || err.response?.status === 403) {
       localStorage.removeItem("websec_token");
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("websec:unauthorized"));
-      }
     }
     return Promise.reject(err);
   },
@@ -37,6 +34,7 @@ export interface Finding {
 export interface ScanResponse {
   id: number;
   hostname: string;
+  name: string | null;
   status: "PENDING_VERIFICATION" | "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
   verificationToken: string | null;
   createdAt: string;
