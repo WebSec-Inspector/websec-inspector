@@ -43,11 +43,21 @@ export default function ScanReportPage() {
     );
   }
 
-  // Carregamento inicial — só enquanto ainda não há nada para mostrar.
-  if (loading && !scan) {
+  /*
+   * Ainda sem dado: ou é o carregamento inicial, ou uma falha recuperável
+   * está sendo repetida pelo hook. Os dois casos continuam em andamento, e
+   * nenhum deles significa que a varredura não existe.
+   */
+  if (!scan && !error && (loading || polling)) {
     return (
       <Shell>
-        <LoadingPanel label="Carregando resultado da varredura..." />
+        <LoadingPanel
+          label={
+            polling && !loading
+              ? "Falha ao consultar o servidor. Tentando novamente..."
+              : "Carregando resultado da varredura..."
+          }
+        />
       </Shell>
     );
   }
