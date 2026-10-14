@@ -6,6 +6,7 @@ import { ErrorPanel, LoadingPanel, StatePanel } from "../components/FeedbackStat
 import { useScanPolling } from "../hooks/useScanPolling";
 import { useAuth } from "../context/AuthContext";
 import { ScanResponse } from "../services/api";
+import { RESUME_SCAN_PARAM } from "./SubmitScanPage";
 import { invalidResponseError } from "../lib/apiError";
 import { STATUS_PRESENTATION, shouldKeepPolling } from "../lib/scanStatus";
 
@@ -143,8 +144,9 @@ export default function ScanReportPage() {
           <p className="mb-3 text-sm text-slate-300">
             A varredura só é enfileirada após a confirmação de propriedade do domínio.
           </p>
+          {/* Leva o ID adiante: confirmar precisa concluir esta varredura, não criar outra. */}
           <Link
-            to="/scans/novo"
+            to={`/scans/novo?${RESUME_SCAN_PARAM}=${scan.id}`}
             className="inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink hover:opacity-90"
           >
             Concluir verificação do domínio

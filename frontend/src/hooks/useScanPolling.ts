@@ -52,8 +52,19 @@ export function useScanPolling(scanId: number | null): ScanPollingState {
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
   const transientFailuresRef = useRef(0);
-  /** Evita que o efeito recrie o ciclo a cada render; só o scanId reinicia. */
-  const runRef = useRef<(() => void) | null>(null);
+  /**
+   * Identidade do ciclo de polling. Troca a cada scanId novo e a cada reload.
+   * Uma flag de montagem não serve aqui: ao trocar o ID da rota ela volta a
+   * ser verdadeira, e a resposta do scan anterior passaria a valer para o
+   * scan atual — inclusive cancelando o timer dele, caso viesse terminal.
+   */
+  const cycleRef = useRef(0);
+  const tickRef = useRef<((cycle: number) => void) | null>(null);
+
+  const isCurrent = useCallback(
+    (cycle: number) => mountedRef.current && cycle === cycleRef.current,
+    [],
+  );
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -63,84 +74,96 @@ export function useScanPolling(scanId: number | null): ScanPollingState {
   }, []);
 
   const schedule = useCallback(
-    (delayMs: number) => {
+    (delayMs: number, cycle: number) => {
+      if (!isCurrent(cycle)) return;
       clearTimer();
-      if (!mountedRef.current || delayMs <= 0) return;
+      if (delayMs <= 0) return;
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
-        runRef.current?.();
+        tickRef.current?.(cycle);
       }, delayMs);
     },
-    [clearTimer],
+    [clearTimer, isCurrent],
   );
 
-  const tick = useCallback(async () => {
-    if (scanId === null || !mountedRef.current) return;
-    // Descarta a chamada se outra já está em andamento.
-    if (inFlightRef.current) return;
+  const tick = useCallback(
+    async (cycle: number) => {
+      if (scanId === null || !isCurrent(cycle)) return;
+      // Descarta a chamada se outra já está em andamento.
+      if (inFlightRef.current) return;
 
-    inFlightRef.current = true;
-    try {
-      const data = await getScan(scanId);
-      if (!mountedRef.current) return;
+      inFlightRef.current = true;
+      try {
+        const data = await getScan(scanId);
+        if (!isCurrent(cycle)) return;
 
-      transientFailuresRef.current = 0;
-      setScan(data);
-      setError(null);
-      setLoading(false);
+        transientFailuresRef.current = 0;
+        setScan(data);
+        setError(null);
+        setLoading(false);
 
-      if (shouldKeepPolling(data.status)) {
-        setPolling(true);
-        schedule(pollIntervalMs(data.status));
-      } else {
-        // Estado terminal: condição de parada.
+        if (shouldKeepPolling(data.status)) {
+          setPolling(true);
+          schedule(pollIntervalMs(data.status), cycle);
+        } else {
+          // Estado terminal: condição de parada.
+          setPolling(false);
+          clearTimer();
+        }
+      } catch (err) {
+        if (!isCurrent(cycle)) return;
+
+        const apiError = toApiError(err);
+        setLoading(false);
+
+        if (isRecoverable(apiError) && !isSessionExpired(apiError)) {
+          transientFailuresRef.current += 1;
+          if (transientFailuresRef.current <= MAX_TRANSIENT_RETRIES) {
+            // Mantém o dado anterior visível e tenta de novo com espera crescente.
+            setPolling(true);
+            schedule(TRANSIENT_RETRY_BASE_MS * transientFailuresRef.current, cycle);
+            return;
+          }
+        }
+
+        // Erro definitivo: para o polling e entrega o erro para a tela tratar.
         setPolling(false);
         clearTimer();
+        setError(apiError);
+      } finally {
+        inFlightRef.current = false;
       }
-    } catch (err) {
-      if (!mountedRef.current) return;
+    },
+    [scanId, schedule, clearTimer, isCurrent],
+  );
 
-      const apiError = toApiError(err);
-      setLoading(false);
-
-      if (isRecoverable(apiError) && !isSessionExpired(apiError)) {
-        transientFailuresRef.current += 1;
-        if (transientFailuresRef.current <= MAX_TRANSIENT_RETRIES) {
-          // Mantém o dado anterior visível e tenta de novo com espera crescente.
-          setPolling(true);
-          schedule(TRANSIENT_RETRY_BASE_MS * transientFailuresRef.current);
-          return;
-        }
-      }
-
-      // Erro definitivo: para o polling e entrega o erro para a tela tratar.
-      setPolling(false);
-      clearTimer();
-      setError(apiError);
-    } finally {
-      inFlightRef.current = false;
-    }
-  }, [scanId, schedule, clearTimer]);
-
-  // Mantém `runRef` apontando para o tick atual sem reiniciar o ciclo.
+  // Mantém `tickRef` apontando para o tick atual sem reiniciar o ciclo.
   useEffect(() => {
-    runRef.current = () => {
-      void tick();
+    tickRef.current = (cycle: number) => {
+      void tick(cycle);
     };
   }, [tick]);
 
+  /** Abre um ciclo novo, invalidando qualquer resposta ou timer pendente. */
+  const beginCycle = useCallback(() => {
+    cycleRef.current += 1;
+    transientFailuresRef.current = 0;
+    inFlightRef.current = false;
+    clearTimer();
+    return cycleRef.current;
+  }, [clearTimer]);
+
   const reload = useCallback(() => {
     if (scanId === null) return;
-    transientFailuresRef.current = 0;
-    clearTimer();
+    const cycle = beginCycle();
     setError(null);
     setLoading(scan === null);
-    void tick();
-  }, [scanId, clearTimer, tick, scan]);
+    void tick(cycle);
+  }, [scanId, beginCycle, tick, scan]);
 
   useEffect(() => {
     mountedRef.current = true;
-    transientFailuresRef.current = 0;
+    const cycle = beginCycle();
 
     if (scanId === null) {
       setScan(null);
@@ -156,7 +179,7 @@ export function useScanPolling(scanId: number | null): ScanPollingState {
     setScan(null);
     setError(null);
     setLoading(true);
-    void tick();
+    void tick(cycle);
 
     // Limpeza ao desmontar ou ao trocar de scan.
     return () => {
