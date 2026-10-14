@@ -7,6 +7,7 @@ import java.util.Optional;
 
 public interface DomainRepository extends JpaRepository<Domain, Long> {
     List<Domain> findByUserId(Long userId);
+    List<Domain> findByUserIdOrderByHostnameAsc(Long userId);
     Optional<Domain> findByVerificationToken(String token);
     Optional<Domain> findFirstByHostnameAndUserId(String hostname, Long userId);
     Optional<Domain> findByHostname(String hostname);
