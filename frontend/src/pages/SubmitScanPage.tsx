@@ -1,16 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { submitScan, confirmVerification } from "../services/api";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { submitScan, confirmVerification, getScan } from "../services/api";
 import { useDomains } from "../context/DomainContext";
 import { toApiError } from "../lib/apiError";
 
 const POLL_INTERVAL_SECONDS = 15;
 
+/** Query param que retoma a verificação de um scan já existente. */
+export const RESUME_SCAN_PARAM = "scan";
+
 export default function SubmitScanPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { selectDomain, refresh: refreshDomains } = useDomains();
   const [url, setUrl] = useState("");
-  const [step, setStep] = useState<"form" | "verifying">("form");
+  const [step, setStep] = useState<"form" | "verifying" | "resuming">("form");
   const [scanId, setScanId] = useState<number | null>(null);
   const [hostname, setHostname] = useState("");
   const [token, setToken] = useState("");
@@ -30,6 +34,54 @@ export default function SubmitScanPage() {
   useEffect(() => {
     return () => clearPolling();
   }, []);
+
+  /*
+   * Retomada de uma verificação pendente. Sem isto, voltar da tela de
+   * resultado para "Nova varredura" criaria um segundo scan e renovaria o
+   * token do domínio, de modo que confirmar aqui nunca concluiria o scan
+   * original.
+   */
+  useEffect(() => {
+    const raw = searchParams.get(RESUME_SCAN_PARAM);
+    if (!raw) return;
+
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0) {
+      setError("Varredura inválida para retomar a verificação.");
+      return;
+    }
+
+    let active = true;
+    setStep("resuming");
+    setError(null);
+
+    (async () => {
+      try {
+        const scan = await getScan(id);
+        if (!active) return;
+
+        if (scan.status !== "PENDING_VERIFICATION") {
+          // Já saiu da verificação: o lugar certo é a tela de resultado.
+          navigate(`/scans/${scan.id}`, { replace: true });
+          return;
+        }
+
+        setScanId(scan.id);
+        setHostname(scan.hostname);
+        setToken(scan.verificationToken ?? "");
+        selectDomain(scan.domainId);
+        setStep("verifying");
+      } catch (err) {
+        if (!active) return;
+        setError(resolveErrorMessage(err));
+        setStep("form");
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [searchParams, navigate, selectDomain]);
 
   function clearPolling() {
     if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
@@ -184,6 +236,12 @@ export default function SubmitScanPage() {
       <h1 className="mb-6 text-xl font-semibold">Nova varredura de segurança</h1>
 
       {error && <p className="mb-4 text-sm text-risk-high">{error}</p>}
+
+      {step === "resuming" && (
+        <div className="rounded-xl border border-white/10 bg-panel p-6 text-sm text-slate-400">
+          Carregando a verificação pendente...
+        </div>
+      )}
 
       {step === "form" && (
         <form onSubmit={handleSubmit} className="rounded-xl border border-white/10 bg-panel p-6">

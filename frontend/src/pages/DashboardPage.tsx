@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useDomains } from "../context/DomainContext";
+import { useRequestGeneration } from "../hooks/useRequestGeneration";
 import { getDomainHistory, ScanResponse } from "../services/api";
 import { ApiError, toApiError } from "../lib/apiError";
 import { ErrorPanel, LoadingPanel, StatePanel } from "../components/FeedbackState";
@@ -24,39 +25,37 @@ export default function DashboardPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<ApiError | null>(null);
 
-  const mountedRef = useRef(true);
-  const inFlightRef = useRef(false);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  const request = useRequestGeneration();
 
   const goToLogin = useCallback(() => {
     logout();
     navigate("/login", { replace: true });
   }, [logout, navigate]);
 
-  const loadHistory = useCallback(async (domainId: number) => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      const data = await getDomainHistory(domainId);
-      if (!mountedRef.current) return;
-      setHistory(data);
-    } catch (err) {
-      if (!mountedRef.current) return;
-      setHistory(null);
-      setHistoryError(toApiError(err));
-    } finally {
-      inFlightRef.current = false;
-      if (mountedRef.current) setHistoryLoading(false);
-    }
-  }, []);
+  /*
+   * Uma consulta nunca é descartada por já existir outra em andamento: a mais
+   * recente sempre vence. A anterior continua chegando, mas é ignorada, para
+   * que o histórico de um domínio não apareça sob outro domínio selecionado.
+   */
+  const loadHistory = useCallback(
+    async (domainId: number) => {
+      const generation = request.start();
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const data = await getDomainHistory(domainId);
+        if (!request.isCurrent(generation)) return;
+        setHistory(data);
+      } catch (err) {
+        if (!request.isCurrent(generation)) return;
+        setHistory(null);
+        setHistoryError(toApiError(err));
+      } finally {
+        if (request.isCurrent(generation)) setHistoryLoading(false);
+      }
+    },
+    [request],
+  );
 
   /*
    * A consulta do historico so acontece com um domainId resolvido pelo
@@ -65,13 +64,15 @@ export default function DashboardPage() {
    */
   useEffect(() => {
     if (activeDomainId === null) {
+      // Sem domínio: descarta o que estiver em voo antes de limpar a tela.
+      request.invalidate();
       setHistory(null);
       setHistoryError(null);
       setHistoryLoading(false);
       return;
     }
     void loadHistory(activeDomainId);
-  }, [activeDomainId, loadHistory]);
+  }, [activeDomainId, loadHistory, request]);
 
   const reloadHistory = useCallback(() => {
     if (activeDomainId !== null) void loadHistory(activeDomainId);

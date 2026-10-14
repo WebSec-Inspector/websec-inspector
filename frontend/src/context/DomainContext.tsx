@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { DomainResponse, getDomains } from "../services/api";
 import { ApiError, toApiError } from "../lib/apiError";
+import { useRequestGeneration } from "../hooks/useRequestGeneration";
 import { useAuth } from "./AuthContext";
 
 const ACTIVE_DOMAIN_STORAGE_KEY = "websec_active_domain_id";
@@ -85,43 +86,49 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
-  const mountedRef = useRef(true);
-  const inFlightRef = useRef(false);
+  /** Sessão vigente, lida de dentro das respostas tardias. */
+  const tokenRef = useRef(token);
 
+  const request = useRequestGeneration();
+
+  /*
+   * Cada consulta fica atrelada à sessão que a iniciou. O provider não
+   * desmonta no logout, então sem essa amarração a resposta da conta anterior
+   * chegaria depois e preencheria o contexto da conta recém-autenticada.
+   */
+  const load = useCallback(
+    async (sessionToken: string | null) => {
+      const generation = request.start();
+      setLoading(true);
+      setError(null);
+      try {
+        const list = await getDomains();
+        if (!request.isCurrent(generation) || sessionToken !== tokenRef.current) return;
+        setDomains(list);
+        setActiveDomainId((current) => {
+          const resolved = resolveActiveDomainId(list, current ?? readStoredDomainId());
+          storeDomainId(resolved);
+          return resolved;
+        });
+      } catch (err) {
+        if (!request.isCurrent(generation) || sessionToken !== tokenRef.current) return;
+        setError(toApiError(err));
+        setDomains([]);
+        setActiveDomainId(null);
+      } finally {
+        if (request.isCurrent(generation) && sessionToken === tokenRef.current) {
+          setLoading(false);
+        }
+      }
+    },
+    [request],
+  );
+
+  // Carrega ao autenticar; descarta tudo — inclusive o que está em voo — ao sair.
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+    tokenRef.current = token;
+    request.invalidate();
 
-  const load = useCallback(async () => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    setLoading(true);
-    setError(null);
-    try {
-      const list = await getDomains();
-      if (!mountedRef.current) return;
-      setDomains(list);
-      setActiveDomainId((current) => {
-        const resolved = resolveActiveDomainId(list, current ?? readStoredDomainId());
-        storeDomainId(resolved);
-        return resolved;
-      });
-    } catch (err) {
-      if (!mountedRef.current) return;
-      setError(toApiError(err));
-      setDomains([]);
-      setActiveDomainId(null);
-    } finally {
-      inFlightRef.current = false;
-      if (mountedRef.current) setLoading(false);
-    }
-  }, []);
-
-  // Carrega ao autenticar; descarta tudo ao sair.
-  useEffect(() => {
     if (!token) {
       setDomains([]);
       setActiveDomainId(null);
@@ -130,8 +137,8 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
       storeDomainId(null);
       return;
     }
-    void load();
-  }, [token, load]);
+    void load(token);
+  }, [token, load, request]);
 
   const selectDomain = useCallback((domainId: number) => {
     setActiveDomainId((current) => {
@@ -142,7 +149,7 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refresh = useCallback(() => {
-    void load();
+    void load(tokenRef.current);
   }, [load]);
 
   const value = useMemo<DomainContextValue>(() => {
