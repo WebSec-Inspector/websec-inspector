@@ -27,8 +27,17 @@ export interface Finding {
   owaspCategory: string;
   description: string;
   cvssScore: number;
-  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | "INFORMATIONAL";
   recommendation: string;
+  title: string;
+  confidence: string | null;
+  affectedUrl: string | null;
+  affectedParameter: string | null;
+  evidence: string | null;
+  cweId: string | null;
+  wascId: string | null;
+  technicalReference: string | null;
+  executionTimestamp: string | null;
 }
 
 export interface ScanResponse {
@@ -38,6 +47,7 @@ export interface ScanResponse {
   verificationToken: string | null;
   createdAt: string;
   finishedAt: string | null;
+  findingsCount: number;
   findings: Finding[];
 }
 

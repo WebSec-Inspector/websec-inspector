@@ -32,7 +32,9 @@ export default function ScanReportPage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <h1 className="text-xl font-semibold">{scan.hostname}</h1>
-      <p className="mb-6 text-sm text-slate-400">Status: {scan.status}</p>
+      <p className="mb-6 text-sm text-slate-400">
+        Status: {scan.status} · {scan.findingsCount} resultados
+      </p>
 
       {scan.findings.length === 0 ? (
         <p className="text-slate-400">
@@ -45,10 +47,11 @@ export default function ScanReportPage() {
           {scan.findings.map((f) => (
             <li key={f.id} className="rounded-xl border border-white/10 bg-panel p-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="font-medium">{f.owaspCategory}</span>
+                <span className="font-medium">{f.title}</span>
                 <SeverityBadge severity={f.severity} />
               </div>
               <p className="mb-2 text-sm text-slate-300">{f.description}</p>
+              {f.affectedUrl && <p className="mb-2 break-all text-xs text-slate-400">{f.affectedUrl}</p>}
               <p className="text-xs text-slate-500">CVSS {f.cvssScore.toFixed(1)} — {f.recommendation}</p>
             </li>
           ))}
