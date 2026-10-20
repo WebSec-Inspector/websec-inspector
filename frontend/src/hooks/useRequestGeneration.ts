@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 /**
  * Invalida respostas de requisições que deixaram de ser relevantes.
@@ -46,5 +46,14 @@ export function useRequestGeneration(): RequestGeneration {
     generationRef.current += 1;
   }, []);
 
-  return { start, isCurrent, invalidate };
+  /*
+   * A referência precisa ser estável. Devolvendo um objeto novo a cada
+   * renderização, todo efeito que depende dele volta a rodar, atualiza estado
+   * e provoca outra renderização — um ciclo que refaz a consulta sem parar.
+   * As três funções já são estáveis; só faltava o invólucro.
+   */
+  return useMemo(
+    () => ({ start, isCurrent, invalidate }),
+    [start, isCurrent, invalidate],
+  );
 }
