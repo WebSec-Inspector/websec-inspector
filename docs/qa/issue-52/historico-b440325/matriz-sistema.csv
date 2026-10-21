@@ -1,0 +1,49 @@
+﻿"ID";"Cenário";"Pré-condição";"Ação";"Resultado esperado";"Resultado observado";"Status";"Evidência"
+"API-01";"login válido";"API local + contas QA A/B; banco somente leitura para histórico";"anonymous: POST /auth/login";"200 e token não vazio";"HTTP 200";"PASS";"evidencias/api-results.json#API-01"
+"API-02";"cadastro duplicado";"API local + contas QA A/B; banco somente leitura para histórico";"anonymous: POST /auth/register";"400 sem criar segunda conta";"HTTP 400";"PASS";"evidencias/api-results.json#API-02"
+"API-03";"cadastro com senha curta";"API local + contas QA A/B; banco somente leitura para histórico";"anonymous: POST /auth/register";"400";"HTTP 400";"PASS";"evidencias/api-results.json#API-03"
+"API-04";"credencial inválida";"API local + contas QA A/B; banco somente leitura para histórico";"anonymous: POST /auth/login";"401; nunca 500";"Expected values to be strictly equal:
+
+500 !== 401
+";"FAIL";"evidencias/api-results.json#API-04"
+"API-05";"consulta anônima";"API local + contas QA A/B; banco somente leitura para histórico";"anonymous: GET /scans/13";"401";"HTTP 401";"PASS";"evidencias/api-results.json#API-05"
+"API-06";"token inválido";"API local + contas QA A/B; banco somente leitura para histórico";"invalid: GET /scans/13";"401";"HTTP 401";"PASS";"evidencias/api-results.json#API-06"
+"API-07";"scan recém-criado aguarda propriedade";"API local + contas QA A/B; banco somente leitura para histórico";"Validar resposta de criação do fixture";"PENDING_VERIFICATION, token presente e nenhum achado";"Asserções satisfeitas";"PASS";"evidencias/api-results.json#API-07"
+"API-08";"consulta do próprio scan";"API local + contas QA A/B; banco somente leitura para histórico";"A: GET /scans/13";"200 e identificador correto";"HTTP 200";"PASS";"evidencias/api-results.json#API-08"
+"API-09";"contrato domainId para histórico";"API local + contas QA A/B; banco somente leitura para histórico";"A: GET /scans/13";"domainId inteiro positivo";"domainId ausente/inválido na resposta";"FAIL";"evidencias/api-results.json#API-09"
+"API-10";"scan inexistente";"API local + contas QA A/B; banco somente leitura para histórico";"A: GET /scans/9223372036854775806";"404";"Expected values to be strictly equal:
+
+409 !== 404
+";"FAIL — contrato proposto";"evidencias/api-results.json#API-10"
+"API-11";"isolamento entre contas A e B";"API local + contas QA A/B; banco somente leitura para histórico";"B: GET /scans/13";"403 ou 404; B não pode ler scan de A";"B acessou scan de A: HTTP 200";"FAIL";"evidencias/api-results.json#API-11"
+"API-12";"submissão vazia";"API local + contas QA A/B; banco somente leitura para histórico";"A: POST /scans";"400";"HTTP 400";"PASS";"evidencias/api-results.json#API-12"
+"API-13";"histórico sem autenticação";"API local + contas QA A/B; banco somente leitura para histórico";"anonymous: GET /scans/domain/9223372036854775806/history";"401";"HTTP 401";"PASS";"evidencias/api-results.json#API-13"
+"API-14";"domínio inexistente no histórico";"API local + contas QA A/B; banco somente leitura para histórico";"A: GET /scans/domain/9223372036854775806/history";"404; distinguir domínio inexistente de histórico vazio";"Expected values to be strictly equal:
+
+200 !== 404
+";"FAIL — contrato proposto";"evidencias/api-results.json#API-14"
+"API-15";"repetição de submissão mantém identidade do domínio";"API local + contas QA A/B; banco somente leitura para histórico";"A: POST /scans";"mesmo token de verificação para scans pendentes do mesmo domínio";"Nova submissão invalidou o token já apresentado ao usuário";"FAIL";"evidencias/api-results.json#API-15"
+"API-16";"confirmação anônima bloqueada";"API local + contas QA A/B; banco somente leitura para histórico";"anonymous: POST /scans/13/confirm-verification";"401";"HTTP 401";"PASS";"evidencias/api-results.json#API-16"
+"API-17";"propriedade ausente impede enfileiramento";"API local + contas QA A/B; banco somente leitura para histórico";"A: POST /scans/13/confirm-verification; A: GET /scans/13";"409 VERIFICATION_PENDING e scan permanece pendente";"HTTP 409; HTTP 200";"PASS";"evidencias/api-results.json#API-17"
+"API-18";"histórico real da própria conta";"API local + contas QA A/B; banco somente leitura para histórico";"A: GET /scans/domain/6/history";"200, scan presente e ordem decrescente de criação";"HTTP 200";"PASS";"evidencias/api-results.json#API-18"
+"API-19";"histórico de A não é acessível por B";"API local + contas QA A/B; banco somente leitura para histórico";"B: GET /scans/domain/6/history";"403 ou 404";"B acessou histórico de A: HTTP 200";"FAIL";"evidencias/api-results.json#API-19"
+"API-20";"sessão expirada";"API local + contas QA A/B; banco somente leitura para histórico";"invalid: GET /scans/13";"401 com JWT corretamente assinado porém expirado";"HTTP 401";"PASS";"evidencias/api-results.json#API-20"
+"FLOW-fixture";"fixture";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""ports"":[80,443]}";"PASS";"evidencias/fluxo-local.json"
+"FLOW-auth";"auth";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""account"":""qa52-ui-1792623255373@example.invalid""}";"PASS";"evidencias/fluxo-local.json"
+"FLOW-submit";"submit";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""scanId"":10,""scanStatus"":""PENDING_VERIFICATION""}";"PASS";"evidencias/fluxo-local.json"
+"FLOW-unverified";"unverified";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""httpStatus"":409,""code"":""VERIFICATION_PENDING""}";"PASS";"evidencias/fluxo-local.json"
+"FLOW-verification";"verification";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""scanStatus"":""QUEUED""}";"PASS";"evidencias/fluxo-local.json"
+"FLOW-duplicate-confirmation";"duplicate-confirmation";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""httpStatus"":409}";"PASS";"evidencias/fluxo-local.json"
+"FLOW-processing";"processing";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""scanStatus"":""RUNNING"",""at"":""2026-10-21T23:00:51.714Z""}";"OBSERVED";"evidencias/fluxo-local.json"
+"FLOW-processing";"processing";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""scanStatus"":""COMPLETED"",""at"":""2026-10-21T23:01:55.487Z""}";"OBSERVED";"evidencias/fluxo-local.json"
+"FLOW-result";"result";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""findings"":15}";"PASS";"evidencias/fluxo-local.json"
+"FLOW-domainId-contract";"domainId-contract";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"domainId ausente na API; obtido por consulta somente leitura ao banco do próprio fixture QA.";"FAIL";"evidencias/fluxo-local.json"
+"FLOW-history";"history";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""count"":4}";"PASS";"evidencias/fluxo-local.json"
+"FLOW-report-mailhog";"report-mailhog";"Docker local + fixture host.docker.internal";"node qa/local-flow.mjs";"Etapa concluída no alvo controlado";"{""messageId"":""MaU5OGlG3heTBEWnzbw7dx9M51ljXztEogPE7af9peQ=@mailhog.example"",""subject"":""WebSec Inspector — Relatório do scan #10"",""pdfBytes"":3343,""pdfSha256"":""7bc7b21daff9e3449b1d5028c2c4cafc9f3743e6cbe2d01d246320d970d51770"",""recipients"":""usuario@exemplo.com""}";"PASS";"evidencias/fluxo-local.json"
+"UI-REAL-01";"Cadastro e Dashboard";"Frontend e API reais";"Cadastrar conta QA pelo navegador";"Autenticar e mostrar painel funcional";"Cadastro autentica; Dashboard apresenta texto fixo, sem histórico";"PARTIAL";"evidencias/dashboard-real.png"
+"UI-REAL-02";"Submissão";"Conta QA autenticada";"Submeter http://host.docker.internal";"Apresentar domínio e token/meta tag";"Tela de verificação apresentada";"PASS";"Observação de navegador + FLOW-submit"
+"UI-REAL-03";"Resultado concluído";"Scan QA 10 concluído";"Abrir /scans/10";"Mostrar COMPLETED e achados";"COMPLETED; achados apresentados no navegador";"PASS";"evidencias/resultado-real.png"
+"UI-REAL-04";"Scan inexistente";"Conta QA autenticada";"Abrir /scans/99999999";"Encerrar loading e explicar falha";"API 409; interface permanece em Carregando...";"FAIL";"evidencias/scan-inexistente-carregando.png"
+"SYS-LIMIT-01";"Backend fisicamente desligado / timeout de rede real";"Acesso ao mecanismo Docker indisponível nesta sessão";"Interromper backend ou atrasar rede";"Mostrar erro recuperável";"Falhas simuladas em REG-04/REG-05; não se desligou o ambiente do usuário";"NOT EXECUTED (real)";"regressions-results.json"
+"SYS-LIMIT-02";"Falha real de processamento";"Ambiente integrado";"Induzir falha no worker/ZAP";"Persistir FAILED e mostrar mensagem adequada";"Worker validado com falha de ZAP simulada; UI FAILED reprovada em REG-02; não foi induzida falha no container";"PARTIAL";"worker-console.txt; regressions-results.json"
+"SYS-LIMIT-03";"Reteste depois de correções";"Correções funcionais disponíveis";"Reexecutar suítes sem alterar expectativas";"Regressões passam e comparação antes/depois registrada";"Nenhuma correção funcional nesta entrega de QA";"PENDING";"qa/README.md"
