@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { login as apiLogin, register as apiRegister } from "../services/api";
 
 interface AuthContextValue {
@@ -14,6 +14,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(
     () => localStorage.getItem("websec_token")
   );
+
+  useEffect(() => {
+    const handleUnauthorized = () => setToken(null);
+    window.addEventListener("websec:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("websec:unauthorized", handleUnauthorized);
+  }, []);
 
   async function login(email: string, password: string) {
     const { token } = await apiLogin(email, password);

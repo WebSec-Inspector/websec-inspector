@@ -1,18 +1,26 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { submitScan, confirmVerification } from "../services/api";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { submitScan, confirmVerification, getScan } from "../services/api";
+import { useDomains } from "../context/DomainContext";
+import { toApiError } from "../lib/apiError";
 
 const POLL_INTERVAL_SECONDS = 15;
 
+/** Query param que retoma a verificação de um scan já existente. */
+export const RESUME_SCAN_PARAM = "scan";
+
 export default function SubmitScanPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { selectDomain, refresh: refreshDomains } = useDomains();
   const [url, setUrl] = useState("");
-  const [step, setStep] = useState<"form" | "verifying">("form");
+  const [step, setStep] = useState<"form" | "verifying" | "resuming">("form");
   const [scanId, setScanId] = useState<number | null>(null);
   const [hostname, setHostname] = useState("");
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Estado da verificação automática: enquanto pendingMessage estiver
   // preenchido, o botão continua tentando em segundo plano até a
@@ -26,6 +34,54 @@ export default function SubmitScanPage() {
   useEffect(() => {
     return () => clearPolling();
   }, []);
+
+  /*
+   * Retomada de uma verificação pendente. Sem isto, voltar da tela de
+   * resultado para "Nova varredura" criaria um segundo scan e renovaria o
+   * token do domínio, de modo que confirmar aqui nunca concluiria o scan
+   * original.
+   */
+  useEffect(() => {
+    const raw = searchParams.get(RESUME_SCAN_PARAM);
+    if (!raw) return;
+
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0) {
+      setError("Varredura inválida para retomar a verificação.");
+      return;
+    }
+
+    let active = true;
+    setStep("resuming");
+    setError(null);
+
+    (async () => {
+      try {
+        const scan = await getScan(id);
+        if (!active) return;
+
+        if (scan.status !== "PENDING_VERIFICATION") {
+          // Já saiu da verificação: o lugar certo é a tela de resultado.
+          navigate(`/scans/${scan.id}`, { replace: true });
+          return;
+        }
+
+        setScanId(scan.id);
+        setHostname(scan.hostname);
+        setToken(scan.verificationToken ?? "");
+        selectDomain(scan.domainId);
+        setStep("verifying");
+      } catch (err) {
+        if (!active) return;
+        setError(resolveErrorMessage(err));
+        setStep("form");
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [searchParams, navigate, selectDomain]);
 
   function clearPolling() {
     if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
@@ -64,33 +120,62 @@ export default function SubmitScanPage() {
     return url;
   }
 
+  /**
+   * Validação local antes de gastar uma requisição: a URL precisa ser
+   * parseável e apontar para um host com ponto (evita "localhost", "teste"
+   * e endereços obviamente inválidos).
+   */
+  function validateUrl(raw: string): string | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return "Informe a URL do site que deseja analisar.";
+
+    let parsed: URL;
+    try {
+      parsed = new URL(normalizeUrl(trimmed));
+    } catch {
+      return "A URL informada não é válida. Exemplo: meusite.com.br";
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "Use um endereço http:// ou https://.";
+    }
+    if (!parsed.hostname.includes(".") || parsed.hostname.endsWith(".")) {
+      return "Informe um domínio completo, como meusite.com.br.";
+    }
+    return null;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const validationError = validateUrl(url);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setSubmitting(true);
     try {
       const normalized = normalizeUrl(url);
       const scan = await submitScan(normalized);
       setScanId(scan.id);
       setHostname(scan.hostname);
       setToken(scan.verificationToken ?? "");
+      // Registra o domínio recém-criado como ativo: é daqui que o Dashboard
+      // obtém o domainId usado na consulta do histórico.
+      selectDomain(scan.domainId);
+      refreshDomains();
       setStep("verifying");
     } catch (err: unknown) {
       setError(resolveErrorMessage(err));
+    } finally {
+      setSubmitting(false);
     }
   }
 
   function resolveErrorMessage(err: unknown): string {
-    const axiosErr = err as { response?: { status?: number; data?: { error?: string } } };
-    const serverMessage = axiosErr?.response?.data?.error;
-    if (serverMessage) return serverMessage;
-
-    if (!axiosErr?.response) {
-      return "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.";
-    }
-    if (axiosErr.response.status === 401 || axiosErr.response.status === 403) {
-      return "Sua sessão expirou. Faça login novamente.";
-    }
-    return "Não foi possível iniciar a análise. Verifique a URL informada.";
+    return toApiError(err).message;
   }
 
   /**
@@ -103,8 +188,12 @@ export default function SubmitScanPage() {
     if (!scanId) return;
     setChecking(true);
     try {
-      await confirmVerification(scanId);
+      const scan = await confirmVerification(scanId);
       clearPolling();
+      // O domínio acabou de ser marcado como verificado: atualiza a lista
+      // para o Dashboard refletir o novo estado.
+      selectDomain(scan.domainId);
+      refreshDomains();
       navigate(`/scans/${scanId}`);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string; code?: string } } };
@@ -148,6 +237,12 @@ export default function SubmitScanPage() {
 
       {error && <p className="mb-4 text-sm text-risk-high">{error}</p>}
 
+      {step === "resuming" && (
+        <div className="rounded-xl border border-white/10 bg-panel p-6 text-sm text-slate-400">
+          Carregando a verificação pendente...
+        </div>
+      )}
+
       {step === "form" && (
         <form onSubmit={handleSubmit} className="rounded-xl border border-white/10 bg-panel p-6">
           <label className="mb-1 block text-sm text-slate-300">URL do site a analisar</label>
@@ -158,8 +253,12 @@ export default function SubmitScanPage() {
             onChange={(e) => setUrl(e.target.value)}
             required
           />
-          <button className="w-full rounded-md bg-accent py-2 font-medium text-ink hover:opacity-90" type="submit">
-            Continuar
+          <button
+            className="w-full rounded-md bg-accent py-2 font-medium text-ink hover:opacity-90 disabled:opacity-60"
+            type="submit"
+            disabled={submitting}
+          >
+            {submitting ? "Enviando..." : "Continuar"}
           </button>
         </form>
       )}
