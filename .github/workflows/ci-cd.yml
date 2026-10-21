@@ -60,6 +60,18 @@ jobs:
   worker:
     name: CI - Worker
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: websec_test
+          POSTGRES_USER: websec_test
+          POSTGRES_PASSWORD: test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U websec_test -d websec_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,6 +90,11 @@ jobs:
       - name: Validate Python sources
         working-directory: worker
         run: python -m compileall -q .
+
+      - name: Test ZAP parsing and PostgreSQL persistence
+        env:
+          TEST_POSTGRES_DSN: postgresql://websec_test:test-only@localhost:5432/websec_test
+        run: python -m unittest discover -s worker/tests -v
 
   containers:
     name: CI - Containers

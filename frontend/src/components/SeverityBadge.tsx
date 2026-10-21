@@ -5,6 +5,7 @@ const styles: Record<string, string> = {
   MEDIUM: "bg-risk-medium/20 text-risk-medium border-risk-medium/40",
   HIGH: "bg-risk-high/20 text-risk-high border-risk-high/40",
   CRITICAL: "bg-risk-critical/20 text-risk-critical border-risk-critical/40",
+  INFORMATIONAL: "bg-slate-500/20 text-slate-300 border-slate-500/40",
 };
 
 const labels: Record<string, string> = {
@@ -12,6 +13,7 @@ const labels: Record<string, string> = {
   MEDIUM: "Médio",
   HIGH: "Alto",
   CRITICAL: "Crítico",
+  INFORMATIONAL: "Informativo",
 };
 
 export default function SeverityBadge({ severity }: { severity: string }) {

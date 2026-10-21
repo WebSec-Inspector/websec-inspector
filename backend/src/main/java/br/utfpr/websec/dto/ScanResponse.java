@@ -17,5 +17,6 @@ public record ScanResponse(
         String verificationToken,
         Instant createdAt,
         Instant finishedAt,
+        int findingsCount,
         List<FindingResponse> findings
 ) {}

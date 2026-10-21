@@ -214,7 +214,10 @@ public class ScanService {
     private List<FindingResponse> loadFindings(Long scanId) {
         return findingRepository.findByScanId(scanId).stream()
                 .map(f -> new FindingResponse(f.getId(), f.getOwaspCategory(), f.getDescription(),
-                        f.getCvssScore(), f.getSeverity().name(), f.getRecommendation()))
+                        f.getCvssScore(), f.getSeverity().name(), f.getRecommendation(),
+                        f.getTitle() == null ? f.getOwaspCategory() : f.getTitle(), f.getConfidence(),
+                        f.getAffectedUrl(), f.getAffectedParameter(), f.getEvidence(), f.getCweId(),
+                        f.getWascId(), f.getTechnicalReference(), f.getExecutionTimestamp()))
                 .toList();
     }
 
@@ -238,6 +241,7 @@ public class ScanService {
                 scan.getStatus() == Scan.Status.PENDING_VERIFICATION ? domain.getVerificationToken() : null,
                 scan.getCreatedAt(),
                 scan.getFinishedAt(),
+                findings.size(),
                 findings
         );
     }

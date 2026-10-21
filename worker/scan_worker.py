@@ -22,6 +22,8 @@ import psycopg2
 import requests
 
 from report_service import generate_pdf_report, send_report_email
+from finding_service import save_findings
+from zap_parser import parse_zap_alerts
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("scan_worker")
@@ -97,43 +99,11 @@ def update_scan_status(conn, scan_id: int, status: str, finished: bool = False):
     conn.commit()
 
 
-def save_findings(conn, scan_id: int, findings: list[dict]):
-    with conn.cursor() as cur:
-        for f in findings:
-            cur.execute(
-                """
-                INSERT INTO findings (scan_id, owasp_category, description, cvss_score, severity, recommendation)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    scan_id,
-                    f["owasp_category"],
-                    f["description"],
-                    f["cvss_score"],
-                    severity_from_score(f["cvss_score"]),
-                    f["recommendation"],
-                ),
-            )
-    conn.commit()
-
-
-def severity_from_score(score: float) -> str:
-    if score >= 9.0:
-        return "CRITICAL"
-    if score >= 7.0:
-        return "HIGH"
-    if score >= 4.0:
-        return "MEDIUM"
-    return "LOW"
-
-
 def run_zap_baseline(target_url: str) -> list[dict]:
     """
-    Executa o OWASP ZAP baseline scan contra a URL alvo (não destrutivo,
-    foco no OWASP Top 10) e normaliza os alertas em uma lista de findings.
+    Executa o scan baseline e retorna os alertas brutos da API Core do ZAP.
 
-    NOTA: implementação de referência usando a API do ZAP. Requer um
-    container `owasp/zap2docker-stable` acessível em ZAP_API_URL.
+    Requer uma instância ZAP acessível em ZAP_API_URL.
     """
     from zapv2 import ZAPv2
 
@@ -162,23 +132,7 @@ def run_zap_baseline(target_url: str) -> list[dict]:
     while int(zap.ascan.status(scan_id)) < 100:
         time.sleep(5)
 
-    alerts = zap.core.alerts(baseurl=target_url)
-
-    findings = []
-    for alert in alerts:
-        findings.append({
-            "owasp_category": alert.get("cweid", "N/A"),
-            "description": alert.get("alert", "Sem descrição"),
-            "cvss_score": risk_to_cvss(alert.get("risk", "Low")),
-            "recommendation": alert.get("solution", "Ver documentação OWASP."),
-        })
-    return findings
-
-
-def risk_to_cvss(zap_risk: str) -> float:
-    """Mapeia o nível de risco textual do ZAP para um score CVSS aproximado."""
-    mapping = {"High": 8.5, "Medium": 5.5, "Low": 3.0, "Informational": 0.5}
-    return mapping.get(zap_risk, 3.0)
+    return zap.core.alerts(baseurl=target_url)
 
 
 def process_scan(conn, scan_id: int):
@@ -194,7 +148,8 @@ def process_scan(conn, scan_id: int):
 
 
     try:
-        findings = run_zap_baseline(target_url)
+        raw_alerts = run_zap_baseline(target_url)
+        findings = parse_zap_alerts(raw_alerts)
         save_findings(conn, scan_id, findings)
         update_scan_status(conn, scan_id, "COMPLETED", finished=True)
 

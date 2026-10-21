@@ -99,7 +99,7 @@ export default function ScanReportPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">{scan.hostname || "Varredura"}</h1>
-          <p className="text-sm text-slate-400">Varredura #{scan.id}</p>
+          <p className="text-sm text-slate-400">Varredura #{scan.id} · {scan.findingsCount} resultados</p>
         </div>
         <ScanStatusBadge status={scan.status} pulsing={transient && polling} />
       </div>
@@ -201,10 +201,11 @@ function Findings({ scan, transient }: { scan: ScanResponse; transient: boolean 
       {scan.findings.map((f) => (
         <li key={f.id} className="rounded-xl border border-white/10 bg-panel p-4">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="font-medium">{f.owaspCategory}</span>
+            <span className="font-medium">{f.title || f.owaspCategory}</span>
             <SeverityBadge severity={f.severity} />
           </div>
           <p className="mb-2 text-sm text-slate-300">{f.description}</p>
+          {f.affectedUrl && <p className="mb-2 break-all text-xs text-slate-400">{f.affectedUrl}</p>}
           <p className="text-xs text-slate-500">
             CVSS {f.cvssScore.toFixed(1)} — {f.recommendation}
           </p>
