@@ -49,6 +49,7 @@ export interface ScanResponse {
   /** Necessário para consultar o histórico sem recorrer a valor hardcoded. */
   domainId: number;
   hostname: string;
+  name: string | null;
   status: ScanStatus;
   verificationToken: string | null;
   createdAt: string;
@@ -87,6 +88,7 @@ function parseScan(data: unknown): ScanResponse {
   return {
     id: raw.id,
     domainId: raw.domainId,
+    name: typeof raw.name === "string" ? raw.name : null,
     hostname: typeof raw.hostname === "string" ? raw.hostname : "",
     status: raw.status,
     verificationToken: typeof raw.verificationToken === "string" ? raw.verificationToken : null,

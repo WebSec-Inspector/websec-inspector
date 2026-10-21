@@ -1,6 +1,6 @@
 # WebSec Inspector — Arquitetura
 
-**Atualizado em:** 04/10/2026
+**Atualizado em:** 09/09/2026
 
 Este documento descreve a arquitetura **existente no código atual**. Funcionalidades previstas, mas ainda não implementadas, são indicadas explicitamente.
 
@@ -72,20 +72,6 @@ O `docker-compose.yml` define:
 | `mailhog` | SMTP/UI para e-mails de desenvolvimento |
 | `prometheus` | infraestrutura de métricas preparada |
 | `grafana` | infraestrutura de visualização preparada |
-
-### Hospedagem na AWS
-
-A versão pública está disponível em [WebSec Inspector](https://18-225-177-140.sslip.io).
-Em produção, o [`infra/production/compose.yml`](../infra/production/compose.yml)
-executa oito serviços em uma instância Amazon EC2 com Ubuntu: Caddy, frontend,
-backend, worker, PostgreSQL, Redis, OWASP ZAP e Mailpit.
-
-O Caddy termina o HTTPS e encaminha `/api/*` para o backend e as demais rotas
-para o frontend. Banco, fila, scanner e captura de e-mails usam a rede interna
-dos containers. Volumes preservam os dados entre atualizações, e limites de
-CPU/memória e rotação de logs controlam o uso dos recursos.
-Prometheus e Grafana são opcionais no ambiente local e não fazem parte dessa
-composição de produção. Veja [hospedagem e operação](aws-cloud.md).
 
 ---
 
@@ -288,7 +274,8 @@ Scan
 - `email`
 - `passwordHash`
 - `name`
-- `role`
+- `role` (`CLIENTE`, `GERENTE`, `ADMINISTRADOR`; valores antigos `USER`/`ADMIN` são lidos por compatibilidade)
+- `manager_id` (vínculo opcional do cliente ao gerente responsável)
 - `createdAt`
 
 ### Domain
@@ -474,18 +461,11 @@ ddl-auto: validate
 
 ## 14. CI/CD
 
-O workflow [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml) executa
-testes do backend, build do frontend, validação das fontes Python, validação
-do Docker Compose e testes do procedimento de deploy em pull requests e na `main`.
+O repositório não contém atualmente um pipeline GitHub Actions funcional para build, testes e deploy.
 
-Pushes e merges na `main` também publicam imagens no GitHub Container Registry
-com o SHA do commit e implantam a versão na AWS. O deploy verifica a identidade
-SSH do servidor, realiza backup antes das atualizações, aguarda os serviços e
-valida o HTTPS e a versão publicada. Em falhas após a ativação, tenta restaurar
-as imagens e a configuração anteriores; esse rollback não desfaz mudanças no banco.
+Portanto:
 
-Credenciais ficam nos GitHub Actions Secrets e no ambiente privado do servidor.
-O repositório contém apenas nomes de configuração e exemplos sem valores reais.
+> CI/CD permanece como requisito e backlog, não como funcionalidade concluída.
 
 ---
 
@@ -525,13 +505,18 @@ O repositório contém apenas nomes de configuração e exemplos sem valores rea
 
 ## 16. Débitos arquiteturais prioritários
 
-1. autorização por recurso/ownership;
+1. ampliar testes e controles de acesso para novos recursos à medida que novas APIs forem adicionadas (scans e histórico possuem regras de perfil/ownership);
 2. persistência da URL original do alvo;
 3. CVSS real;
 4. mapeamento OWASP consistente;
 5. persistência do `Report`;
 6. armazenamento de evidências/resultados brutos do ZAP;
 7. migrations;
-8. testes automatizados;
+8. ampliar a cobertura dos testes automatizados para fluxos completos e integrações;
 9. observabilidade real;
-10. ampliar a cobertura de testes de integração e recuperação em produção.
+10. CI/CD.
+
+
+## Controle de acesso
+
+Os papéis funcionais, a definição do escopo gerencial, os endpoints protegidos, o bypass de desenvolvimento e a matriz de permissões estão descritos em [`controle-acesso.md`](controle-acesso.md).
