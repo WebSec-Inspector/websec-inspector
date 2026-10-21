@@ -18,10 +18,10 @@ public class Finding {
     @Column(name = "owasp_category", nullable = false)
     private String owaspCategory; // ex: "A03:2021 - Injection"
 
-    @Column
+    @Column(columnDefinition = "text")
     private String title;
 
-    @Column(nullable = false, length = 4000)
+    @Column(nullable = false, columnDefinition = "text")
     private String description;
 
     @Column(name = "cvss_score", nullable = false)
@@ -31,19 +31,19 @@ public class Finding {
     @Column(nullable = false)
     private Severity severity;
 
-    @Column(length = 4000)
+    @Column(columnDefinition = "text")
     private String recommendation;
 
     @Column
     private String confidence;
 
-    @Column(name = "affected_url", length = 2000)
+    @Column(name = "affected_url", columnDefinition = "text")
     private String affectedUrl;
 
-    @Column(name = "affected_parameter", length = 1000)
+    @Column(name = "affected_parameter", columnDefinition = "text")
     private String affectedParameter;
 
-    @Column(length = 4000)
+    @Column(columnDefinition = "text")
     private String evidence;
 
     @Column(name = "cwe_id")
@@ -52,7 +52,7 @@ public class Finding {
     @Column(name = "wasc_id")
     private String wascId;
 
-    @Column(name = "technical_reference", length = 4000)
+    @Column(name = "technical_reference", columnDefinition = "text")
     private String technicalReference;
 
     @Column(name = "execution_timestamp")

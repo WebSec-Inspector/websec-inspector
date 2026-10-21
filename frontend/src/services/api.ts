@@ -15,8 +15,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401 || err.response?.status === 403) {
+    if (err.response?.status === 401) {
       localStorage.removeItem("websec_token");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("websec:unauthorized"));
+      }
     }
     return Promise.reject(err);
   },

@@ -16,6 +16,7 @@ class FakeCursor:
         return False
 
     def execute(self, query, params):
+        query = " ".join(query.split())
         if query.startswith("SELECT 1 FROM scans"):
             self.result = (1,) if params[0] in self.connection.scans else None
         elif query.startswith("DELETE FROM findings"):

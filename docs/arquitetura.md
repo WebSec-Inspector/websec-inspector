@@ -1,6 +1,6 @@
 # WebSec Inspector — Arquitetura
 
-**Atualizado em:** 09/09/2026
+**Atualizado em:** 04/10/2026
 
 Este documento descreve a arquitetura **existente no código atual**. Funcionalidades previstas, mas ainda não implementadas, são indicadas explicitamente.
 
@@ -72,6 +72,20 @@ O `docker-compose.yml` define:
 | `mailhog` | SMTP/UI para e-mails de desenvolvimento |
 | `prometheus` | infraestrutura de métricas preparada |
 | `grafana` | infraestrutura de visualização preparada |
+
+### Hospedagem na AWS
+
+A versão pública está disponível em [WebSec Inspector](https://18-225-177-140.sslip.io).
+Em produção, o [`infra/production/compose.yml`](../infra/production/compose.yml)
+executa oito serviços em uma instância Amazon EC2 com Ubuntu: Caddy, frontend,
+backend, worker, PostgreSQL, Redis, OWASP ZAP e Mailpit.
+
+O Caddy termina o HTTPS e encaminha `/api/*` para o backend e as demais rotas
+para o frontend. Banco, fila, scanner e captura de e-mails usam a rede interna
+dos containers. Volumes preservam os dados entre atualizações, e limites de
+CPU/memória e rotação de logs controlam o uso dos recursos.
+Prometheus e Grafana são opcionais no ambiente local e não fazem parte dessa
+composição de produção. Veja [hospedagem e operação](aws-cloud.md).
 
 ---
 
@@ -460,11 +474,18 @@ ddl-auto: validate
 
 ## 14. CI/CD
 
-O repositório não contém atualmente um pipeline GitHub Actions funcional para build, testes e deploy.
+O workflow [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml) executa
+testes do backend, build do frontend, validação das fontes Python, validação
+do Docker Compose e testes do procedimento de deploy em pull requests e na `main`.
 
-Portanto:
+Pushes e merges na `main` também publicam imagens no GitHub Container Registry
+com o SHA do commit e implantam a versão na AWS. O deploy verifica a identidade
+SSH do servidor, realiza backup antes das atualizações, aguarda os serviços e
+valida o HTTPS e a versão publicada. Em falhas após a ativação, tenta restaurar
+as imagens e a configuração anteriores; esse rollback não desfaz mudanças no banco.
 
-> CI/CD permanece como requisito e backlog, não como funcionalidade concluída.
+Credenciais ficam nos GitHub Actions Secrets e no ambiente privado do servidor.
+O repositório contém apenas nomes de configuração e exemplos sem valores reais.
 
 ---
 
@@ -513,4 +534,4 @@ Portanto:
 7. migrations;
 8. testes automatizados;
 9. observabilidade real;
-10. CI/CD.
+10. ampliar a cobertura de testes de integração e recuperação em produção.

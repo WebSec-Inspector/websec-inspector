@@ -36,3 +36,8 @@ pgdata/
 mongodata/
 rabbitdata/
 miniodata/
+
+.superpowers/
+frontend/dist/
+frontend/*.tsbuildinfo
+backend/target/

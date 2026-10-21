@@ -15,6 +15,7 @@ A equipe é organizada por responsabilidades, mantendo colaboração entre frent
 | Vitor | Front-end + Dados | implementação e integração da interface web |
 | Gustavo | Back-end | API, regras de negócio e persistência |
 | Romildo | Front-end + apoio QA | frontend, integração e apoio às atividades de qualidade |
+| Lucas Yada | Full Stack + IA | frontend, backend, automação e apoio às demais atividades |
 
 ---
 
