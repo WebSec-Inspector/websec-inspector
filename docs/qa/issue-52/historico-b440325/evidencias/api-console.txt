@@ -32,9 +32,9 @@
 test at qa\api.system.test.mjs:42:3
 ✖ API-04: credencial inválida (95.848ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
-  
+
   500 !== 401
-  
+
       at file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:94:10
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
@@ -67,9 +67,9 @@ test at qa\api.system.test.mjs:42:3
 test at qa\api.system.test.mjs:42:3
 ✖ API-10: scan inexistente (9.141ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
-  
+
   409 !== 404
-  
+
       at file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:118:10
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
@@ -102,9 +102,9 @@ test at qa\api.system.test.mjs:42:3
 test at qa\api.system.test.mjs:42:3
 ✖ API-14: domínio inexistente no histórico (8.82ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
-  
+
   200 !== 404
-  
+
       at file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:131:10
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
