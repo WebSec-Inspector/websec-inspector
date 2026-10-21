@@ -6,6 +6,7 @@ import java.util.List;
 public record ScanResponse(
         Long id,
         String hostname,
+        String name,
         String status,
         String verificationToken,
         Instant createdAt,

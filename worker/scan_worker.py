@@ -117,8 +117,19 @@ def run_zap_baseline(target_url: str) -> list[dict]:
         time.sleep(2)
 
     log.info("Iniciando passive/active scan (baseline) em %s", target_url)
-    zap.ascan.scan(target_url)
-    while int(zap.ascan.status()) < 100:
+    #original
+    #zap.ascan.scan(target_url)
+    #while int(zap.ascan.status()) < 100:
+        #time.sleep(5)
+    
+    #novo:
+    scan_id = zap.ascan.scan(target_url)
+    if not scan_id or not str(scan_id).isdigit():
+         raise RuntimeError(
+        f"ZAP não iniciou a varredura ativa para {target_url}. "
+        f"Retorno recebido: {scan_id!r}"
+    )
+    while int(zap.ascan.status(scan_id)) < 100:
         time.sleep(5)
 
     return zap.core.alerts(baseurl=target_url)
@@ -129,7 +140,12 @@ def process_scan(conn, scan_id: int):
     update_scan_status(conn, scan_id, "RUNNING")
 
     hostname = fetch_scan_target(conn, scan_id)
-    target_url = f"https://{hostname}"
+    if hostname == "juice-shop":
+        target_url = "http://juice-shop:3000"
+    else:
+        target_url = f"https://{hostname}"
+    #target_url = f"https://{hostname}"
+
 
     try:
         raw_alerts = run_zap_baseline(target_url)

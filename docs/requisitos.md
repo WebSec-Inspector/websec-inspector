@@ -65,11 +65,11 @@ O resultado é composto por achados de segurança, classificação de risco, rec
 | RF04 | Executar verificações de segurança utilizando OWASP ZAP. | 🟡 | Spider + active scan estão implementados; checks próprios do OWASP Top 10 ainda não. |
 | RF05 | Executar verificações customizadas além do ZAP. | ⬜ | Ainda não implementado. |
 | RF06 | Classificar vulnerabilidades utilizando CVSS. | 🟡 | Há score aproximado baseado no risco ZAP; não é CVSS real. |
-| RF07 | Manter histórico de scans por usuário/domínio. | 🟡 | Endpoint de histórico existe; interface e autorização precisam ser completadas. |
+| RF07 | Manter histórico de scans por usuário/domínio. | 🟡 | Endpoint possui ownership/escopo por perfil; integração da interface ainda pendente. |
 | RF08 | Comparar duas execuções. | ⬜ | Ainda não implementado. |
 | RF09 | Gerar relatório PDF. | 🟡 | PDF é gerado pelo worker; associação persistida em `Report` ainda precisa ser completada. |
 | RF10 | Enviar relatório por e-mail. | 🟡 | Funciona no ambiente de desenvolvimento via MailHog; integração com destinatário real ainda não está concluída. |
-| RF11 | Oferecer painel administrativo. | ⬜ | Modelo possui `ADMIN`, mas painel não está implementado. |
+| RF11 | Oferecer painel administrativo. | 🟡 | Perfis e endpoints administrativos de backend existem; painel de interface ainda não está implementado. |
 | RF12 | Processar scans de forma assíncrona. | ✅ | Redis + worker Python. |
 
 ---
@@ -78,7 +78,7 @@ O resultado é composto por achados de segurança, classificação de risco, rec
 
 | ID | Requisito | Estado | Observação |
 |---|---|---|---|
-| RNF01 | Autenticação e autorização nos endpoints protegidos. | 🟡 | JWT/autenticação implementados; autorização por ownership ainda precisa ser reforçada. |
+| RNF01 | Autenticação e autorização nos endpoints protegidos. | 🟡 | JWT e autorização por perfil/ownership implementados para scans e histórico; outros recursos poderão exigir regras específicas quando ganharem endpoints. |
 | RNF02 | Isolar execução dos scanners em containers. | ✅ | Worker e ZAP separados. |
 | RNF03 | Utilizar fila para desacoplar API e execução. | ✅ | Redis. |
 | RNF04 | Disponibilizar observabilidade com métricas e dashboards. | 🟡 | Containers preparados; integração efetiva ainda pendente. |
@@ -86,7 +86,7 @@ O resultado é composto por achados de segurança, classificação de risco, rec
 | RNF06 | Documentar API com OpenAPI/Swagger. | ✅ | Springdoc configurado. |
 | RNF07 | Interface responsiva em React + TailwindCSS. | 🟡 | Interface atual implementada; evolução visual e cobertura funcional continuam no backlog do Project. |
 | RNF08 | Nunca executar scan sem verificação de propriedade. | ✅ | A transição para `QUEUED` exige verificação. |
-| RNF09 | Isolar recursos por usuário. | 🚧 | Deve ser consolidado em todos os endpoints que recebem IDs de recursos. |
+| RNF09 | Isolar recursos por usuário. | 🟡 | Ownership de scans/histórico e escopo gerencial implementados; recursos sem endpoints próprios não possuem API de acesso nesta entrega. |
 | RNF10 | Versionar o schema do banco. | ⬜ | Atualmente utiliza `ddl-auto: update`. |
 
 ---
@@ -264,3 +264,6 @@ A priorização operacional e o estado de execução devem ser acompanhados no G
 - painel administrativo;
 - indicadores;
 - funcionalidades específicas de `ADMIN`.
+
+
+As regras implementadas para perfis Cliente, Gerente e Administrador estão detalhadas em [`controle-acesso.md`](controle-acesso.md).
