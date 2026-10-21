@@ -75,3 +75,7 @@ backend/target/
 zap-reports/
 scan-reports/
 reports/generated/
+
+# Evidencias locais geradas pela suite de QA
+qa/artifacts/
+frontend/coverage/

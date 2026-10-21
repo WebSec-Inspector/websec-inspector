@@ -1,0 +1,82 @@
+{
+  "at": "2026-10-21T23:00:51.291Z",
+  "target": "host.docker.internal",
+  "stages": [
+    {
+      "stage": "fixture",
+      "status": "PASS",
+      "ports": [
+        80,
+        443
+      ]
+    },
+    {
+      "stage": "auth",
+      "status": "PASS",
+      "account": "qa52-ui-1792623255373@example.invalid"
+    },
+    {
+      "stage": "submit",
+      "status": "PASS",
+      "scanId": 10,
+      "scanStatus": "PENDING_VERIFICATION"
+    },
+    {
+      "stage": "unverified",
+      "status": "PASS",
+      "httpStatus": 409,
+      "code": "VERIFICATION_PENDING"
+    },
+    {
+      "stage": "verification",
+      "status": "PASS",
+      "scanStatus": "QUEUED"
+    },
+    {
+      "stage": "duplicate-confirmation",
+      "status": "PASS",
+      "httpStatus": 409
+    },
+    {
+      "stage": "processing",
+      "status": "OBSERVED",
+      "scanStatus": "RUNNING",
+      "at": "2026-10-21T23:00:51.714Z"
+    },
+    {
+      "stage": "processing",
+      "status": "OBSERVED",
+      "scanStatus": "COMPLETED",
+      "at": "2026-10-21T23:01:55.487Z"
+    },
+    {
+      "stage": "result",
+      "status": "PASS",
+      "findings": 15
+    },
+    {
+      "stage": "domainId-contract",
+      "status": "FAIL",
+      "reason": "domainId ausente na API; obtido por consulta somente leitura ao banco do próprio fixture QA.",
+      "domainId": 2
+    },
+    {
+      "stage": "history",
+      "status": "PASS",
+      "count": 4
+    },
+    {
+      "stage": "report-mailhog",
+      "status": "PASS",
+      "messageId": "MaU5OGlG3heTBEWnzbw7dx9M51ljXztEogPE7af9peQ=@mailhog.example",
+      "subject": "WebSec Inspector — Relatório do scan #10",
+      "pdfBytes": 3343,
+      "pdfSha256": "7bc7b21daff9e3449b1d5028c2c4cafc9f3743e6cbe2d01d246320d970d51770",
+      "recipients": "usuario@exemplo.com"
+    }
+  ],
+  "limits": [],
+  "scanId": 10,
+  "outcome": "PARTIAL",
+  "fixtureRequests": 155
+}

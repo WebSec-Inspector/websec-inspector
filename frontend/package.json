@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run --pool=forks --maxWorkers=1 --minWorkers=1"
+    "test": "vitest run --pool=forks --maxWorkers=1 --minWorkers=1",
+    "test:regressions": "vitest run tests/component/revalidation.test.tsx --pool=forks --maxWorkers=1 --minWorkers=1",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "axios": "^1.7.4",
@@ -16,10 +18,14 @@
     "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
+    "axios-mock-adapter": "^2.1.0",
+    "jsdom": "^26.1.0",
     "postcss": "^8.4.41",
     "react-test-renderer": "^18.3.1",
     "tailwindcss": "^3.4.9",

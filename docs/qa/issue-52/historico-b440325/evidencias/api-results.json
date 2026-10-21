@@ -1,0 +1,756 @@
+{
+  "run": "a5162ce4-044c-4c11-a800-a3aafa8543f8",
+  "at": "2026-10-21T23:05:57.926Z",
+  "base": "http://localhost:8080/api",
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "win32"
+  },
+  "fixtures": {
+    "accountA": "qa52-a5162ce4-044c-4c11-a800-a3aafa8543f8@example.invalid",
+    "accountB": "qa52-other-a5162ce4-044c-4c11-a800-a3aafa8543f8@example.invalid",
+    "scanId": 13,
+    "target": "host.docker.internal"
+  },
+  "results": [
+    {
+      "id": "API-01",
+      "name": "login válido",
+      "expected": "200 e token não vazio",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.579Z",
+          "method": "POST",
+          "path": "/auth/login",
+          "actor": "anonymous",
+          "status": 200,
+          "data": {
+            "token": "[REDACTED]",
+            "tokenType": "[REDACTED]"
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-02",
+      "name": "cadastro duplicado",
+      "expected": "400 sem criar segunda conta",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.597Z",
+          "method": "POST",
+          "path": "/auth/register",
+          "actor": "anonymous",
+          "status": 400,
+          "data": {
+            "error": "E-mail já cadastrado"
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-03",
+      "name": "cadastro com senha curta",
+      "expected": "400",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.607Z",
+          "method": "POST",
+          "path": "/auth/register",
+          "actor": "anonymous",
+          "status": 400,
+          "data": {
+            "error": "password: senha deve ter ao menos 8 caracteres"
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-04",
+      "name": "credencial inválida",
+      "expected": "401; nunca 500",
+      "status": "FAIL",
+      "observed": "Expected values to be strictly equal:\n\n500 !== 401\n",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.702Z",
+          "method": "POST",
+          "path": "/auth/login",
+          "actor": "anonymous",
+          "status": 500,
+          "data": {
+            "error": "Erro interno: Credenciais inválidas"
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-05",
+      "name": "consulta anônima",
+      "expected": "401",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.710Z",
+          "method": "GET",
+          "path": "/scans/13",
+          "actor": "anonymous",
+          "status": 401,
+          "data": {
+            "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-06",
+      "name": "token inválido",
+      "expected": "401",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.717Z",
+          "method": "GET",
+          "path": "/scans/13",
+          "actor": "invalid",
+          "status": 401,
+          "data": {
+            "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-07",
+      "name": "scan recém-criado aguarda propriedade",
+      "expected": "PENDING_VERIFICATION, token presente e nenhum achado",
+      "status": "PASS",
+      "trace": []
+    },
+    {
+      "id": "API-08",
+      "name": "consulta do próprio scan",
+      "expected": "200 e identificador correto",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.729Z",
+          "method": "GET",
+          "path": "/scans/13",
+          "actor": "A",
+          "status": 200,
+          "data": {
+            "id": 13,
+            "hostname": "host.docker.internal",
+            "status": "PENDING_VERIFICATION",
+            "verificationToken": "[REDACTED]",
+            "createdAt": "2026-10-21T23:05:57.402096Z",
+            "finishedAt": null,
+            "findings": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-09",
+      "name": "contrato domainId para histórico",
+      "expected": "domainId inteiro positivo",
+      "status": "FAIL",
+      "observed": "domainId ausente/inválido na resposta",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.740Z",
+          "method": "GET",
+          "path": "/scans/13",
+          "actor": "A",
+          "status": 200,
+          "data": {
+            "id": 13,
+            "hostname": "host.docker.internal",
+            "status": "PENDING_VERIFICATION",
+            "verificationToken": "[REDACTED]",
+            "createdAt": "2026-10-21T23:05:57.402096Z",
+            "finishedAt": null,
+            "findings": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-10",
+      "name": "scan inexistente",
+      "expected": "404",
+      "status": "FAIL",
+      "observed": "Expected values to be strictly equal:\n\n409 !== 404\n",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.750Z",
+          "method": "GET",
+          "path": "/scans/9223372036854775806",
+          "actor": "A",
+          "status": 409,
+          "data": {
+            "error": "Scan não encontrado"
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-11",
+      "name": "isolamento entre contas A e B",
+      "expected": "403 ou 404; B não pode ler scan de A",
+      "status": "FAIL",
+      "observed": "B acessou scan de A: HTTP 200",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.761Z",
+          "method": "GET",
+          "path": "/scans/13",
+          "actor": "B",
+          "status": 200,
+          "data": {
+            "id": 13,
+            "hostname": "host.docker.internal",
+            "status": "PENDING_VERIFICATION",
+            "verificationToken": "[REDACTED]",
+            "createdAt": "2026-10-21T23:05:57.402096Z",
+            "finishedAt": null,
+            "findings": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-12",
+      "name": "submissão vazia",
+      "expected": "400",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.772Z",
+          "method": "POST",
+          "path": "/scans",
+          "actor": "A",
+          "status": 400,
+          "data": {
+            "error": "url: URL invalida. Informe um hostname (ex.: example.com) ou URL completa (ex.: https://example.com); url: must not be blank"
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-13",
+      "name": "histórico sem autenticação",
+      "expected": "401",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.781Z",
+          "method": "GET",
+          "path": "/scans/domain/9223372036854775806/history",
+          "actor": "anonymous",
+          "status": 401,
+          "data": {
+            "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-14",
+      "name": "domínio inexistente no histórico",
+      "expected": "404; distinguir domínio inexistente de histórico vazio",
+      "status": "FAIL",
+      "observed": "Expected values to be strictly equal:\n\n200 !== 404\n",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.790Z",
+          "method": "GET",
+          "path": "/scans/domain/9223372036854775806/history",
+          "actor": "A",
+          "status": 200,
+          "data": []
+        }
+      ]
+    },
+    {
+      "id": "API-15",
+      "name": "repetição de submissão mantém identidade do domínio",
+      "expected": "mesmo token de verificação para scans pendentes do mesmo domínio",
+      "status": "FAIL",
+      "observed": "Nova submissão invalidou o token já apresentado ao usuário",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.826Z",
+          "method": "POST",
+          "path": "/scans",
+          "actor": "A",
+          "status": 200,
+          "data": {
+            "id": 14,
+            "hostname": "host.docker.internal",
+            "status": "PENDING_VERIFICATION",
+            "verificationToken": "[REDACTED]",
+            "createdAt": "2026-10-21T23:05:57.822156837Z",
+            "finishedAt": null,
+            "findings": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-16",
+      "name": "confirmação anônima bloqueada",
+      "expected": "401",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.834Z",
+          "method": "POST",
+          "path": "/scans/13/confirm-verification",
+          "actor": "anonymous",
+          "status": 401,
+          "data": {
+            "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-17",
+      "name": "propriedade ausente impede enfileiramento",
+      "expected": "409 VERIFICATION_PENDING e scan permanece pendente",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.867Z",
+          "method": "POST",
+          "path": "/scans/13/confirm-verification",
+          "actor": "A",
+          "status": 409,
+          "data": {
+            "error": "Ainda não encontramos o registro TXT ou a meta tag de verificação para \"host.docker.internal\". A propagação de DNS pode levar alguns minutos.",
+            "code": "VERIFICATION_PENDING"
+          }
+        },
+        {
+          "at": "2026-10-21T23:05:57.887Z",
+          "method": "GET",
+          "path": "/scans/13",
+          "actor": "A",
+          "status": 200,
+          "data": {
+            "id": 13,
+            "hostname": "host.docker.internal",
+            "status": "PENDING_VERIFICATION",
+            "verificationToken": "[REDACTED]",
+            "createdAt": "2026-10-21T23:05:57.402096Z",
+            "finishedAt": null,
+            "findings": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "API-18",
+      "name": "histórico real da própria conta",
+      "expected": "200, scan presente e ordem decrescente de criação",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.903Z",
+          "method": "GET",
+          "path": "/scans/domain/6/history",
+          "actor": "A",
+          "status": 200,
+          "data": [
+            {
+              "id": 14,
+              "hostname": "host.docker.internal",
+              "status": "PENDING_VERIFICATION",
+              "verificationToken": "[REDACTED]",
+              "createdAt": "2026-10-21T23:05:57.822157Z",
+              "finishedAt": null,
+              "findings": []
+            },
+            {
+              "id": 13,
+              "hostname": "host.docker.internal",
+              "status": "PENDING_VERIFICATION",
+              "verificationToken": "[REDACTED]",
+              "createdAt": "2026-10-21T23:05:57.402096Z",
+              "finishedAt": null,
+              "findings": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "API-19",
+      "name": "histórico de A não é acessível por B",
+      "expected": "403 ou 404",
+      "status": "FAIL",
+      "observed": "B acessou histórico de A: HTTP 200",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.917Z",
+          "method": "GET",
+          "path": "/scans/domain/6/history",
+          "actor": "B",
+          "status": 200,
+          "data": [
+            {
+              "id": 14,
+              "hostname": "host.docker.internal",
+              "status": "PENDING_VERIFICATION",
+              "verificationToken": "[REDACTED]",
+              "createdAt": "2026-10-21T23:05:57.822157Z",
+              "finishedAt": null,
+              "findings": []
+            },
+            {
+              "id": 13,
+              "hostname": "host.docker.internal",
+              "status": "PENDING_VERIFICATION",
+              "verificationToken": "[REDACTED]",
+              "createdAt": "2026-10-21T23:05:57.402096Z",
+              "finishedAt": null,
+              "findings": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "API-20",
+      "name": "sessão expirada",
+      "expected": "401 com JWT corretamente assinado porém expirado",
+      "status": "PASS",
+      "trace": [
+        {
+          "at": "2026-10-21T23:05:57.924Z",
+          "method": "GET",
+          "path": "/scans/13",
+          "actor": "invalid",
+          "status": 401,
+          "data": {
+            "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+          }
+        }
+      ]
+    }
+  ],
+  "trace": [
+    {
+      "at": "2026-10-21T23:05:57.289Z",
+      "method": "POST",
+      "path": "/auth/register",
+      "actor": "anonymous",
+      "status": 200,
+      "data": {
+        "token": "[REDACTED]",
+        "tokenType": "[REDACTED]"
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.387Z",
+      "method": "POST",
+      "path": "/auth/register",
+      "actor": "anonymous",
+      "status": 200,
+      "data": {
+        "token": "[REDACTED]",
+        "tokenType": "[REDACTED]"
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.406Z",
+      "method": "POST",
+      "path": "/scans",
+      "actor": "A",
+      "status": 200,
+      "data": {
+        "id": 13,
+        "hostname": "host.docker.internal",
+        "status": "PENDING_VERIFICATION",
+        "verificationToken": "[REDACTED]",
+        "createdAt": "2026-10-21T23:05:57.402095872Z",
+        "finishedAt": null,
+        "findings": []
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.579Z",
+      "method": "POST",
+      "path": "/auth/login",
+      "actor": "anonymous",
+      "status": 200,
+      "data": {
+        "token": "[REDACTED]",
+        "tokenType": "[REDACTED]"
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.597Z",
+      "method": "POST",
+      "path": "/auth/register",
+      "actor": "anonymous",
+      "status": 400,
+      "data": {
+        "error": "E-mail já cadastrado"
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.607Z",
+      "method": "POST",
+      "path": "/auth/register",
+      "actor": "anonymous",
+      "status": 400,
+      "data": {
+        "error": "password: senha deve ter ao menos 8 caracteres"
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.702Z",
+      "method": "POST",
+      "path": "/auth/login",
+      "actor": "anonymous",
+      "status": 500,
+      "data": {
+        "error": "Erro interno: Credenciais inválidas"
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.710Z",
+      "method": "GET",
+      "path": "/scans/13",
+      "actor": "anonymous",
+      "status": 401,
+      "data": {
+        "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.717Z",
+      "method": "GET",
+      "path": "/scans/13",
+      "actor": "invalid",
+      "status": 401,
+      "data": {
+        "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.729Z",
+      "method": "GET",
+      "path": "/scans/13",
+      "actor": "A",
+      "status": 200,
+      "data": {
+        "id": 13,
+        "hostname": "host.docker.internal",
+        "status": "PENDING_VERIFICATION",
+        "verificationToken": "[REDACTED]",
+        "createdAt": "2026-10-21T23:05:57.402096Z",
+        "finishedAt": null,
+        "findings": []
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.740Z",
+      "method": "GET",
+      "path": "/scans/13",
+      "actor": "A",
+      "status": 200,
+      "data": {
+        "id": 13,
+        "hostname": "host.docker.internal",
+        "status": "PENDING_VERIFICATION",
+        "verificationToken": "[REDACTED]",
+        "createdAt": "2026-10-21T23:05:57.402096Z",
+        "finishedAt": null,
+        "findings": []
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.750Z",
+      "method": "GET",
+      "path": "/scans/9223372036854775806",
+      "actor": "A",
+      "status": 409,
+      "data": {
+        "error": "Scan não encontrado"
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.761Z",
+      "method": "GET",
+      "path": "/scans/13",
+      "actor": "B",
+      "status": 200,
+      "data": {
+        "id": 13,
+        "hostname": "host.docker.internal",
+        "status": "PENDING_VERIFICATION",
+        "verificationToken": "[REDACTED]",
+        "createdAt": "2026-10-21T23:05:57.402096Z",
+        "finishedAt": null,
+        "findings": []
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.772Z",
+      "method": "POST",
+      "path": "/scans",
+      "actor": "A",
+      "status": 400,
+      "data": {
+        "error": "url: URL invalida. Informe um hostname (ex.: example.com) ou URL completa (ex.: https://example.com); url: must not be blank"
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.781Z",
+      "method": "GET",
+      "path": "/scans/domain/9223372036854775806/history",
+      "actor": "anonymous",
+      "status": 401,
+      "data": {
+        "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.790Z",
+      "method": "GET",
+      "path": "/scans/domain/9223372036854775806/history",
+      "actor": "A",
+      "status": 200,
+      "data": []
+    },
+    {
+      "at": "2026-10-21T23:05:57.826Z",
+      "method": "POST",
+      "path": "/scans",
+      "actor": "A",
+      "status": 200,
+      "data": {
+        "id": 14,
+        "hostname": "host.docker.internal",
+        "status": "PENDING_VERIFICATION",
+        "verificationToken": "[REDACTED]",
+        "createdAt": "2026-10-21T23:05:57.822156837Z",
+        "finishedAt": null,
+        "findings": []
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.834Z",
+      "method": "POST",
+      "path": "/scans/13/confirm-verification",
+      "actor": "anonymous",
+      "status": 401,
+      "data": {
+        "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.867Z",
+      "method": "POST",
+      "path": "/scans/13/confirm-verification",
+      "actor": "A",
+      "status": 409,
+      "data": {
+        "error": "Ainda não encontramos o registro TXT ou a meta tag de verificação para \"host.docker.internal\". A propagação de DNS pode levar alguns minutos.",
+        "code": "VERIFICATION_PENDING"
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.887Z",
+      "method": "GET",
+      "path": "/scans/13",
+      "actor": "A",
+      "status": 200,
+      "data": {
+        "id": 13,
+        "hostname": "host.docker.internal",
+        "status": "PENDING_VERIFICATION",
+        "verificationToken": "[REDACTED]",
+        "createdAt": "2026-10-21T23:05:57.402096Z",
+        "finishedAt": null,
+        "findings": []
+      }
+    },
+    {
+      "at": "2026-10-21T23:05:57.903Z",
+      "method": "GET",
+      "path": "/scans/domain/6/history",
+      "actor": "A",
+      "status": 200,
+      "data": [
+        {
+          "id": 14,
+          "hostname": "host.docker.internal",
+          "status": "PENDING_VERIFICATION",
+          "verificationToken": "[REDACTED]",
+          "createdAt": "2026-10-21T23:05:57.822157Z",
+          "finishedAt": null,
+          "findings": []
+        },
+        {
+          "id": 13,
+          "hostname": "host.docker.internal",
+          "status": "PENDING_VERIFICATION",
+          "verificationToken": "[REDACTED]",
+          "createdAt": "2026-10-21T23:05:57.402096Z",
+          "finishedAt": null,
+          "findings": []
+        }
+      ]
+    },
+    {
+      "at": "2026-10-21T23:05:57.917Z",
+      "method": "GET",
+      "path": "/scans/domain/6/history",
+      "actor": "B",
+      "status": 200,
+      "data": [
+        {
+          "id": 14,
+          "hostname": "host.docker.internal",
+          "status": "PENDING_VERIFICATION",
+          "verificationToken": "[REDACTED]",
+          "createdAt": "2026-10-21T23:05:57.822157Z",
+          "finishedAt": null,
+          "findings": []
+        },
+        {
+          "id": 13,
+          "hostname": "host.docker.internal",
+          "status": "PENDING_VERIFICATION",
+          "verificationToken": "[REDACTED]",
+          "createdAt": "2026-10-21T23:05:57.402096Z",
+          "finishedAt": null,
+          "findings": []
+        }
+      ]
+    },
+    {
+      "at": "2026-10-21T23:05:57.924Z",
+      "method": "GET",
+      "path": "/scans/13",
+      "actor": "invalid",
+      "status": 401,
+      "data": {
+        "error": "Sess�o expirada ou n�o autenticada. Fa�a login novamente."
+      }
+    }
+  ],
+  "limits": [
+    "Não confirma propriedade, não inicia ZAP nem envia e-mail.",
+    "Contas/scans QA permanecem no banco local; não apaga dados.",
+    "Histórico de domínio válido depende de domainId ausente no contrato atual."
+  ]
+}

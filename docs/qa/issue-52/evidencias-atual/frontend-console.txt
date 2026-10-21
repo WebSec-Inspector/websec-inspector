@@ -1,0 +1,32 @@
+
+> websec-inspector-frontend@0.1.0 test
+> vitest run --pool=forks --maxWorkers=1 --minWorkers=1 --reporter=default --reporter=json --outputFile=../qa/artifacts/frontend-current.json
+
+
+ RUN  v2.1.9 C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector-pr/frontend
+
+ ✓ tests/component/scan.test.tsx (8 tests) 445ms
+ ✓ tests/component/revalidation.test.tsx (12 tests) 276ms
+ ✓ tests/component/auth.test.tsx (7 tests) 284ms
+stderr | tests/auth-pages.test.jsx > restores the login layout, password toggle and invalid-email feedback
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ tests/auth-pages.test.jsx (2 tests) 98ms
+stderr | tests/dashboard-history.test.jsx > hides domain A history while domain B is loading
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ tests/dashboard-history.test.jsx (1 test) 44ms
+
+ Test Files  5 passed (5)
+      Tests  30 passed (30)
+   Start at  20:34:40
+   Duration  17.18s (transform 872ms, setup 2.57s, collect 3.19s, tests 1.15s, environment 7.23s, prepare 1.66s)
+
+JSON report written to C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector-pr/qa/artifacts/frontend-current.json
+npm notice
+npm notice New major version of npm available! 10.9.4 -> 12.2.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+npm notice To update run: npm install -g npm@12.2.1
+npm notice

@@ -1,0 +1,14 @@
+{
+  "name": "websec-inspector-qa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test api.system.test.mjs",
+    "test:flow": "node local-flow.mjs"
+  },
+  "devDependencies": {
+    "pg": "^8.16.0",
+    "selfsigned": "^3.0.1",
+    "mailparser": "^3.7.0"
+  }
+}

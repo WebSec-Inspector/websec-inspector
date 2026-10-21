@@ -1,0 +1,151 @@
+✔ API-01: login válido (420.4646ms)
+✔ API-02: cadastro duplicado (17.5318ms)
+✔ API-03: cadastro com senha curta (10.211ms)
+✖ API-04: credencial inválida (95.848ms)
+✔ API-05: consulta anônima (6.6687ms)
+✔ API-06: token inválido (6.6299ms)
+✔ API-07: scan recém-criado aguarda propriedade (0.88ms)
+✔ API-08: consulta do próprio scan (11.231ms)
+✖ API-09: contrato domainId para histórico (11.2965ms)
+✖ API-10: scan inexistente (9.141ms)
+✖ API-11: isolamento entre contas A e B (10.9964ms)
+✔ API-12: submissão vazia (10.8664ms)
+✔ API-13: histórico sem autenticação (9.1651ms)
+✖ API-14: domínio inexistente no histórico (8.82ms)
+✖ API-15: repetição de submissão mantém identidade do domínio (36.593ms)
+✔ API-16: confirmação anônima bloqueada (6.8152ms)
+✔ API-17: propriedade ausente impede enfileiramento (53.054ms)
+✔ API-18: histórico real da própria conta (16.4992ms)
+✖ API-19: histórico de A não é acessível por B (14.0176ms)
+✔ API-20: sessão expirada (7.0386ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 13
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 972.9532
+
+✖ failing tests:
+
+test at qa\api.system.test.mjs:42:3
+✖ API-04: credencial inválida (95.848ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  500 !== 401
+
+      at file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:94:10
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 500,
+    expected: 401,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at qa\api.system.test.mjs:42:3
+✖ API-09: contrato domainId para histórico (11.2965ms)
+  AssertionError [ERR_ASSERTION]: domainId ausente/inválido na resposta
+      at file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:115:10
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at qa\api.system.test.mjs:42:3
+✖ API-10: scan inexistente (9.141ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  409 !== 404
+
+      at file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:118:10
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 409,
+    expected: 404,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at qa\api.system.test.mjs:42:3
+✖ API-11: isolamento entre contas A e B (10.9964ms)
+  AssertionError [ERR_ASSERTION]: B acessou scan de A: HTTP 200
+      at file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:122:10
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at qa\api.system.test.mjs:42:3
+✖ API-14: domínio inexistente no histórico (8.82ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  200 !== 404
+
+      at file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:131:10
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 404,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at qa\api.system.test.mjs:42:3
+✖ API-15: repetição de submissão mantém identidade do domínio (36.593ms)
+  AssertionError [ERR_ASSERTION]: Nova submissão invalidou o token já apresentado ao usuário
+      at file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:137:10
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at qa\api.system.test.mjs:42:3
+✖ API-19: histórico de A não é acessível por B (14.0176ms)
+  AssertionError [ERR_ASSERTION]: B acessou histórico de A: HTTP 200
+      at scenario.skip (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:158:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///C:/Users/helle/Documents/Codex/2026-10-21/https-github-com-websec-inspector-websec/work/websec-inspector/qa/api.system.test.mjs:45:7)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
