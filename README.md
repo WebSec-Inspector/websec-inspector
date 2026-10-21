@@ -4,8 +4,24 @@
 
 Plataforma web para avaliação automatizada de segurança de aplicações acessíveis por HTTP/HTTPS. O alvo precisa passar por uma verificação de controle do domínio antes que a análise seja colocada em fila. As varreduras são executadas de forma assíncrona por um worker isolado, utilizando OWASP ZAP.
 
-
 As regras de perfis, ownership, escopo gerencial, endpoints administrativos e bypass de desenvolvimento estão documentadas em [`docs/controle-acesso.md`](docs/controle-acesso.md).
+
+## Aplicação hospedada na AWS
+
+**Acesse: [WebSec Inspector](https://18-225-177-140.sslip.io)**
+
+A aplicação está publicada em uma instância Amazon EC2 com Ubuntu e Docker Compose.
+O Caddy fornece HTTPS e encaminha as requisições para o frontend e a API;
+PostgreSQL, Redis, OWASP ZAP, worker e Mailpit permanecem na rede interna dos containers.
+Para utilizar a versão hospedada, abra o link e crie sua conta pelo site.
+
+O GitHub Actions executa testes e validações, publica as imagens no GitHub Container
+Registry e atualiza a aplicação automaticamente após pushes ou merges na branch `main`.
+A infraestrutura utiliza créditos temporários do plano gratuito da AWS; a continuidade
+da hospedagem depende da disponibilidade desses créditos. O endereço pode mudar
+se a instância for parada e iniciada novamente.
+
+Veja a [documentação da hospedagem e do CI/CD](docs/aws-cloud.md).
 
 ## Tecnologias
 
@@ -38,7 +54,7 @@ websec-inspector/
 
 ### 1. Pré-requisitos
 
-O projeto é executado pelo Docker Compose. Não é necessário instalar Java, Node.js, Python, PostgreSQL, Redis ou OWASP ZAP separadamente para o ambiente definido neste repositório: esses componentes são fornecidos pelos próprios containers e imagens do `docker-compose.yml`.
+É necessário estar habilitado a virtualização na BIOS. O projeto é executado pelo Docker Compose. Não é necessário instalar Java, Node.js, Python, PostgreSQL, Redis ou OWASP ZAP separadamente para o ambiente definido neste repositório: esses componentes são fornecidos pelos próprios containers e imagens do `docker-compose.yml`.
 
 #### Windows
 
@@ -73,8 +89,8 @@ docker compose version
 ### 2. Baixar o projeto
 
 ```bash
-git clone https://github.com/JacanaFSilva/Websec-Inspector.git
-cd Websec-Inspector
+git clone https://github.com/WebSec-Inspector/websec-inspector.git
+cd websec-inspector
 ```
 
 ### 3. Subir o ambiente
@@ -83,7 +99,10 @@ cd Websec-Inspector
 docker compose up --build
 ```
 
-Na primeira execução, o Docker irá baixar as imagens necessárias, construir `backend`, `frontend` e `worker`, criar a rede do projeto e iniciar PostgreSQL, Redis, OWASP ZAP, MailHog, Prometheus e Grafana.
+Na primeira execução, o Docker irá baixar as imagens necessárias, construir `backend`, `frontend` e `worker`, criar a rede do projeto e iniciar PostgreSQL, Redis, OWASP ZAP e MailHog.
+
+Prometheus e Grafana são opcionais. Para incluir esses serviços locais, utilize
+`docker compose --profile monitoring up -d`.
 
 Após a primeira construção, para iniciar o ambiente novamente:
 
@@ -101,6 +120,7 @@ docker compose up -d
 
 | Serviço | Endereço |
 |---|---|
+| Websec Inspector | https://18-225-177-140.sslip.io/login |
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:8080 |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
@@ -159,6 +179,8 @@ A aplicação frontend conversa com a API. A API grava os dados no PostgreSQL e 
 
 ## Documentação
 
+- [`docs/aws-cloud.md`](docs/aws-cloud.md) — hospedagem atual na AWS, acesso público, CI/CD e operação.
+- [`docs/oracle-cloud.md`](docs/oracle-cloud.md) — alternativa de infraestrutura Oracle, pendente de capacidade A1.
 - [`docs/arquitetura.md`](docs/arquitetura.md) — arquitetura, fluxo e decisões técnicas.
 - [`docs/equipe.md`](docs/equipe.md) — designação técnica, organização das responsabilidades.
 - [`docs/requisitos.md`](docs/requisitos.md) — requisitos funcionais, não funcionais e de segurança.
