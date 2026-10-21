@@ -47,6 +47,9 @@ class FindingsPostgresTests(unittest.TestCase):
         migration = Path(__file__).resolve().parents[2] / "infra/migrations/20261021-zap-findings.sql"
         with self.conn.cursor() as cur:
             cur.execute(migration.read_text(encoding="utf-8"))
+        # The script contains COMMIT; synchronize psycopg2's connection state
+        # before testing the application's connection-managed transactions.
+        self.conn.commit()
 
     def test_migration_preserves_data_and_supports_long_informational_findings(self):
         self.migrate()
