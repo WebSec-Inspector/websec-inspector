@@ -1,0 +1,64 @@
+name: Monitoring
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Sobrescreva em Settings > Secrets and variables > Actions > Variables (APP_URL), se necessário
+  APP_URL: ${{ vars.APP_URL || 'https://18-225-177-140.sslip.io' }}
+
+jobs:
+  availability:
+    name: Verificar disponibilidade da aplicação
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Frontend (Caddy + nginx)
+        run: |
+          set -u
+          base="${APP_URL%/}"
+          for attempt in 1 2 3; do
+            code=$(curl -sS -L -o /dev/null --max-time 20 -w "%{http_code}" "$base/" || echo 000)
+            echo "Tentativa $attempt: HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 15
+          done
+          echo "::error::Frontend indisponível em $base/ (último HTTP $code)"
+          exit 1
+
+      - name: Versão publicada (/version.txt)
+        run: |
+          set -u
+          base="${APP_URL%/}"
+          code=$(curl -sS -o version.txt --max-time 20 -w "%{http_code}" "$base/version.txt" || echo 000)
+          if [ "$code" != "200" ]; then
+            echo "::error::/version.txt retornou HTTP $code"
+            exit 1
+          fi
+          echo "Commit publicado: $(cat version.txt)"
+          echo "- Commit publicado: \`$(cat version.txt)\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Backend via /api (Caddy -> Spring Boot)
+        run: |
+          set -u
+          base="${APP_URL%/}"
+          # Rota protegida: sem token, backend no ar responde 401/403.
+          # Backend fora do ar faz o Caddy responder 502/503/504.
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o /dev/null --max-time 20 -w "%{http_code}" "$base/api/scans/1" || echo 000)
+            echo "Tentativa $attempt: HTTP $code"
+            case "$code" in
+              200|401|403|404) 
+                echo "- Backend respondendo (HTTP $code)" >> "$GITHUB_STEP_SUMMARY"
+                exit 0 ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Backend indisponível em $base/api (último HTTP $code)"
+          exit 1
