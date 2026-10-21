@@ -21,7 +21,10 @@ export default function DashboardPage() {
     selectDomain,
   } = useDomains();
 
-  const [history, setHistory] = useState<ScanResponse[] | null>(null);
+  const [history, setHistory] = useState<{
+    domainId: number;
+    scans: ScanResponse[];
+  } | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<ApiError | null>(null);
 
@@ -45,7 +48,7 @@ export default function DashboardPage() {
       try {
         const data = await getDomainHistory(domainId);
         if (!request.isCurrent(generation)) return;
-        setHistory(data);
+        setHistory({ domainId, scans: data });
       } catch (err) {
         if (!request.isCurrent(generation)) return;
         setHistory(null);
@@ -117,7 +120,7 @@ export default function DashboardPage() {
         hasDomains={domains.length > 0}
         activeDomain={activeDomain}
         activeDomainId={activeDomainId}
-        history={history}
+        history={history?.domainId === activeDomainId ? history.scans : null}
         historyLoading={historyLoading}
         historyError={historyError}
         reloadHistory={reloadHistory}
