@@ -8,10 +8,30 @@ __pycache__/
 venv/
 env/
 
+# Variáveis de ambiente e credenciais locais
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Chaves privadas e certificados locais
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
 # Node
 node_modules/
 .next/
 out/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Java / Maven
+backend/target/
 
 # IDEs
 .vscode/
@@ -22,14 +42,18 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Docker
 *.log
+docker-compose.override.yml
 
 # Testes
 .coverage
 htmlcov/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Dados locais
 pgdata/
@@ -41,3 +65,13 @@ miniodata/
 frontend/dist/
 frontend/*.tsbuildinfo
 backend/target/
+
+# Dumps e backups locais de banco
+*.dump
+*.backup
+*.sql.gz
+
+# Relatórios gerados localmente
+zap-reports/
+scan-reports/
+reports/generated/

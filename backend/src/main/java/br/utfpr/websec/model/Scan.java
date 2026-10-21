@@ -15,9 +15,16 @@ public class Scan {
     @JoinColumn(name = "domain_id")
     private Domain domain;
 
+    @Column(length = 120)
+    private String name;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.PENDING_VERIFICATION;
+
+    /** Exclusão lógica para preservar findings e rastreabilidade. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -37,6 +44,11 @@ public class Scan {
     }
 
     public Long getId() { return id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public Instant getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(Instant deletedAt) { this.deletedAt = deletedAt; }
+    public boolean isDeleted() { return deletedAt != null; }
     public Domain getDomain() { return domain; }
     public void setDomain(Domain domain) { this.domain = domain; }
     public Status getStatus() { return status; }
