@@ -12,6 +12,7 @@ public record ScanResponse(
         Long id,
         Long domainId,
         String hostname,
+        String name,
         String status,
         String verificationToken,
         Instant createdAt,

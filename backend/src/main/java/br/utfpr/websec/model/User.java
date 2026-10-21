@@ -20,16 +20,20 @@ public class User {
     @Column(nullable = false)
     private String name;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = UserRoleConverter.class)
     @Column(nullable = false)
-    private Role role = Role.USER;
+    private Role role = Role.CLIENTE;
+
+    /** Um cliente pode estar vinculado a um gerente. Gerentes e administradores não recebem gerente. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manager_id")
+    private User manager;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
-    public enum Role { USER, ADMIN }
+    public enum Role { CLIENTE, GERENTE, ADMINISTRADOR }
 
-    // getters e setters
     public Long getId() { return id; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
@@ -39,5 +43,7 @@ public class User {
     public void setName(String name) { this.name = name; }
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
+    public User getManager() { return manager; }
+    public void setManager(User manager) { this.manager = manager; }
     public Instant getCreatedAt() { return createdAt; }
 }
