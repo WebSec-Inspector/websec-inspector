@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./index.css";
 import { AuthProvider } from "./context/AuthContext";
+import { DomainProvider } from "./context/DomainContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -14,7 +15,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
+        <DomainProvider>
+          <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/registrar" element={<RegisterPage />} />
           <Route
@@ -42,7 +44,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+          </Routes>
+        </DomainProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
