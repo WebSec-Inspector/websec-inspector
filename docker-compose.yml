@@ -17,6 +17,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U websec -d websec"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   redis:
     image: redis:7-alpine
@@ -58,14 +63,31 @@ services:
     ports:
       - "127.0.0.1:3001:3000"
 
+  migrate:
+    build: ./worker
+    restart: "no"
+    mem_limit: ${WORKER_MEMORY_LIMIT:-256m}
+    logging: *default-logging
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: websec
+      DB_USER: websec
+      DB_PASSWORD: websec
+      SCHEMA_ADOPT_LEGACY: ${SCHEMA_ADOPT_LEGACY:-false}
+    command: [python, schema_migrations.py]
+
   backend:
     build: ./backend
     mem_limit: ${BACKEND_MEMORY_LIMIT:-768m}
     cpus: ${BACKEND_CPU_LIMIT:-1.0}
     logging: *default-logging
     depends_on:
-      - postgres
-      - redis
+      postgres: {condition: service_healthy}
+      redis: {condition: service_started}
+      migrate: {condition: service_completed_successfully}
     environment:
       JAVA_TOOL_OPTIONS: ${BACKEND_JAVA_TOOL_OPTIONS:--XX:InitialRAMPercentage=10.0 -XX:MaxRAMPercentage=65.0}
       DB_HOST: postgres

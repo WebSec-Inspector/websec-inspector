@@ -42,6 +42,8 @@ with open(os.environ['EVENTS'], 'a') as output:
     output.write(json.dumps({'command': pathlib.Path(sys.argv[0]).name, 'args': args, 'tag': tag}) + '\\n')
 if 'pull' in args and os.environ.get('FAIL_PULL') == '1': sys.exit(12)
 if 'up' in args and tag.endswith('b' * 40) and os.environ.get('FAIL_UP') == '1': sys.exit(13)
+if 'run' in args and 'migrate' in args and os.environ.get('FAIL_MIGRATION') == '1': sys.exit(14)
+if 'up' in args and args[-1] != 'redis' and tag.endswith('b' * 40) and os.environ.get('FAIL_APP') == '1': sys.exit(15)
 if pathlib.Path(sys.argv[0]).name == 'curl' and os.environ.get('FAIL_HTTPS') == '1': sys.exit(22)
 if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'):
     print(os.environ.get('VERSION_SHA', 'b' * 40))
@@ -114,6 +116,35 @@ if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'
         result = self.run_deploy(VERSION_SHA="c" * 40)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"sha-{OLD_SHA}", (self.root / ".release.env").read_text())
+
+    def test_failed_migration_never_starts_new_application(self):
+        self.previous()
+        result = self.run_deploy(FAIL_MIGRATION="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"sha-{OLD_SHA}", (self.root / ".release.env").read_text())
+        new_starts = [c for c in self.calls() if 'up' in c['args'] and c['tag'] == f'sha-{NEW_SHA}']
+        self.assertEqual(1, len(new_starts))
+        self.assertEqual(['postgres', 'redis'], new_starts[0]['args'][-2:])
+
+    def test_application_failure_after_migration_blocks_image_rollback(self):
+        self.previous()
+        result = self.run_deploy(FAIL_APP="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('automatic image rollback blocked', result.stderr)
+        old_starts = [c for c in self.calls() if 'up' in c['args'] and c['tag'] == f'sha-{OLD_SHA}']
+        self.assertEqual([], old_starts)
+        self.assertEqual(['backend', 'worker'], self.calls()[-1]['args'][-2:])
+
+    def test_migration_occurs_after_stop_and_before_application_start(self):
+        self.previous()
+        result = self.run_deploy()
+        self.assertEqual(0, result.returncode, result.stderr)
+        calls = self.calls()
+        stop = next(i for i,c in enumerate(calls) if 'stop' in c['args'])
+        migration = next(i for i,c in enumerate(calls) if 'run' in c['args'] and 'migrate' in c['args'])
+        start = next(i for i,c in enumerate(calls) if 'up' in c['args'] and c['args'][-1] != 'redis')
+        self.assertLess(stop, migration)
+        self.assertLess(migration, start)
 
     def test_concurrent_deploy_is_rejected_before_docker(self):
         with open(self.root / ".deploy.lock", "w") as lock:

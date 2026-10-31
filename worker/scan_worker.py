@@ -163,6 +163,12 @@ def process_scan(conn, scan_id: int):
 
 
 def main():
+    from schema_migrations import migrate
+    conn = get_connection()
+    try:
+        migrate(conn, check_only=True)
+    finally:
+        conn.close()
     r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
     log.info("Worker iniciado. Aguardando mensagens em '%s'...", QUEUE_KEY)
 
