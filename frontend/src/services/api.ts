@@ -72,6 +72,11 @@ export interface DomainResponse {
   hostname: string;
   verified: boolean;
   verifiedAt: string | null;
+  isActive: boolean;
+}
+
+export interface DomainCreateResponse extends DomainResponse {
+  verificationToken: string | null;
 }
 
 /**
@@ -122,7 +127,14 @@ function parseDomain(data: unknown): DomainResponse {
     hostname: typeof raw.hostname === "string" ? raw.hostname : "",
     verified: raw.verified === true,
     verifiedAt: typeof raw.verifiedAt === "string" ? raw.verifiedAt : null,
+    isActive: raw.isActive !== false,
   };
+}
+
+function parseDomainCreate(data: unknown): DomainCreateResponse {
+  const domain = parseDomain(data);
+  const raw = data as Record<string, unknown>;
+  return { ...domain, verificationToken: typeof raw.verificationToken === "string" ? raw.verificationToken : null };
 }
 
 export async function login(email: string, password: string) {
@@ -191,6 +203,20 @@ export async function getDomains() {
     throw invalidResponseError("lista de domínios não é um array");
   }
   return data.map(parseDomain);
+}
+
+export async function createDomain(hostname: string, targetUserId?: number | null) {
+  const { data } = await api.post("/domains", { hostname, targetUserId: targetUserId ?? null });
+  return parseDomainCreate(data);
+}
+
+export async function verifyDomain(domainId: number) {
+  const { data } = await api.post(`/domains/${domainId}/verify`);
+  return parseDomain(data);
+}
+
+export async function archiveDomain(domainId: number) {
+  await api.delete(`/domains/${domainId}`);
 }
 
 export async function getDomainHistory(domainId: number) {

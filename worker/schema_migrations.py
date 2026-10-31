@@ -48,7 +48,8 @@ def validate_schema(cur):
         'users': {'id': 'bigint', 'email': 'character varying', 'password_hash': 'character varying',
                   'name': 'character varying', 'role': 'character varying', 'manager_id': 'bigint', 'created_at': 'timestamp with time zone'},
         'domains': {'id': 'bigint', 'user_id': 'bigint', 'hostname': 'character varying',
-                    'verification_token': 'character varying', 'verified_at': 'timestamp with time zone'},
+                    'verification_token': 'character varying', 'verified_at': 'timestamp with time zone',
+                    'is_active': 'boolean'},
         'scans': {'id': 'bigint', 'domain_id': 'bigint', 'name': 'character varying', 'status': 'character varying',
                   'created_at': 'timestamp with time zone', 'started_at': 'timestamp with time zone',
                   'finished_at': 'timestamp with time zone', 'deleted_at': 'timestamp with time zone'},
@@ -67,6 +68,7 @@ def validate_schema(cur):
         'findings': {'id', 'scan_id', 'owasp_category', 'description', 'cvss_score', 'severity'},
         'reports': {'id', 'scan_id', 'pdf_url'},
     }
+    not_null['domains'].add('is_active')
     required['scans'].update({'attempt_count':'integer','worker_token':'uuid',
         'lease_until':'timestamp with time zone','heartbeat_at':'timestamp with time zone',
         'next_attempt_at':'timestamp with time zone','failure_code':'character varying'})
@@ -85,6 +87,8 @@ def validate_schema(cur):
             expected_length = 120 if table == 'scans' and column == 'name' else 64 if table == 'scans' and column == 'failure_code' else 255
             if kind == 'character varying' and actual[column][2] != expected_length:
                 raise RuntimeError(f'Incompatible schema length: {table}.{column}')
+            if table == 'domains' and column == 'is_active' and actual[column][4] != 'true':
+                raise RuntimeError('Incompatible schema default: domains.is_active must default to true')
         if columns['id']=='bigint' and actual['id'][3] != 'YES' and not (actual['id'][4] or '').startswith('nextval('):
             raise RuntimeError(f'Incompatible schema identity: {table}.id')
     cur.execute('''SELECT t.relname,c.contype,

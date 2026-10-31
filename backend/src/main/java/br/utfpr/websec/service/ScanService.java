@@ -109,8 +109,10 @@ public class ScanService {
             throw new IllegalStateException("Existem domínios equivalentes com provas diferentes. É necessário revisar os registros antes de criar outra varredura.");
         }
         if (!existing.isEmpty()) {
-            verificationChallengeService.bind(challenge,existing.get(0));
-            return existing.get(0);
+            Domain domain = domainRepository.findByIdForUpdate(existing.get(0).getId()).orElse(existing.get(0));
+            if (!domain.isActive()) throw new IllegalStateException("Este domínio está arquivado. Reative-o em Meus Domínios antes de iniciar uma varredura.");
+            verificationChallengeService.bind(challenge,domain);
+            return domain;
         }
         verificationChallengeService.assertUnbound(challenge);
         Domain domain = new Domain();
@@ -269,7 +271,8 @@ public class ScanService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new IllegalStateException("Usuário não encontrado"));
         return domainRepository.findByUserIdOrderByHostnameAsc(user.getId()).stream()
-                .map(d -> new DomainResponse(d.getId(), d.getHostname(), d.isVerified(), d.getVerifiedAt()))
+                .filter(Domain::isActive)
+                .map(d -> new DomainResponse(d.getId(), d.getHostname(), d.isVerified(), d.getVerifiedAt(), d.isActive()))
                 .toList();
     }
 

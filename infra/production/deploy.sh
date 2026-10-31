@@ -32,10 +32,17 @@ compose() {
         --env-file "$version_file" -f "$config_dir/compose.yml" "$@"
 }
 
-stop_running_service() {
-    local service=$1
-    if compose "$candidate" "$release" ps --services --status running 2>/dev/null | grep -Fxq "$service"; then
-        compose "$candidate" "$release" stop "$service"
+stop_running_apps() {
+    local running service
+    local services=()
+    running=$(compose "$candidate" "$release" ps --services --status running)
+    for service in backend worker; do
+        if grep -Fxq "$service" <<<"$running"; then
+            services+=("$service")
+        fi
+    done
+    if ((${#services[@]})); then
+        compose "$candidate" "$release" stop "${services[@]}"
     fi
 }
 
@@ -51,8 +58,9 @@ rollback() {
     trap - ERR
     if $migration_may_have_committed; then
         # Never start an older application against an upgraded schema.
-        stop_running_service backend
-        stop_running_service worker
+        if ! stop_running_apps; then
+            echo 'Could not confirm application services are stopped; operator intervention is required.' >&2
+        fi
         echo 'Schema migration may have committed; automatic image rollback blocked. Keep maintenance and recover with a schema-compatible release or restore the verified backup.' >&2
         exit "$failure"
     fi
@@ -74,8 +82,7 @@ rollback() {
 }
 trap 'rollback $?' ERR
 compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
-stop_running_service backend
-stop_running_service worker
+stop_running_apps
 migration_may_have_committed=true
 compose "$candidate" "$release" run --rm --no-deps migrate
 compose "$candidate" "$release" up -d --wait --wait-timeout 600
