@@ -71,6 +71,9 @@ def validate_schema(cur):
         'lease_until':'timestamp with time zone','heartbeat_at':'timestamp with time zone',
         'next_attempt_at':'timestamp with time zone','failure_code':'character varying'})
     not_null['scans'].add('attempt_count')
+    required['verification_challenges']={'id':'uuid','user_id':'bigint','token':'character varying',
+        'domain_id':'bigint','created_at':'timestamp with time zone'}
+    not_null['verification_challenges']={'id','user_id','token','created_at'}
     for table, columns in required.items():
         cur.execute('SELECT column_name,data_type,is_nullable,character_maximum_length,is_identity,column_default FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=%s', (table,))
         actual = {row[0]: row[1:] for row in cur.fetchall()}
@@ -82,7 +85,7 @@ def validate_schema(cur):
             expected_length = 120 if table == 'scans' and column == 'name' else 64 if table == 'scans' and column == 'failure_code' else 255
             if kind == 'character varying' and actual[column][2] != expected_length:
                 raise RuntimeError(f'Incompatible schema length: {table}.{column}')
-        if actual['id'][3] != 'YES' and not (actual['id'][4] or '').startswith('nextval('):
+        if columns['id']=='bigint' and actual['id'][3] != 'YES' and not (actual['id'][4] or '').startswith('nextval('):
             raise RuntimeError(f'Incompatible schema identity: {table}.id')
     cur.execute('''SELECT t.relname,c.contype,
         ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(num,ord)
@@ -97,10 +100,12 @@ def validate_schema(cur):
     needed = {(table, 'p', ('id',), None, ()) for table in required}
     needed |= {(table, 'u', cols, None, ()) for table, cols in [
         ('users', ('email',)), ('domains', ('verification_token',)),
-        ('domains', ('hostname', 'user_id')), ('reports', ('scan_id',))]}
+        ('domains', ('hostname', 'user_id')), ('reports', ('scan_id',)),
+        ('verification_challenges',('token',)),('verification_challenges',('domain_id',))]}
     needed |= {(table, 'f', (column,), target, ('id',)) for table, column, target in [
         ('users', 'manager_id', 'users'), ('domains', 'user_id', 'users'),
-        ('scans', 'domain_id', 'domains'), ('findings', 'scan_id', 'scans'), ('reports', 'scan_id', 'scans')]}
+        ('scans', 'domain_id', 'domains'), ('findings', 'scan_id', 'scans'), ('reports', 'scan_id', 'scans'),
+        ('verification_challenges','user_id','users'),('verification_challenges','domain_id','domains')]}
     if not needed.issubset(constraints):
         raise RuntimeError('Incompatible schema constraint: missing primary/unique/foreign key')
 
