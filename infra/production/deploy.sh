@@ -64,9 +64,9 @@ rollback() {
     trap - ERR
     if $migration_may_have_committed; then
         # Never start an older application against an upgraded schema.
-        if ! stop_running_apps; then
-            echo 'Could not confirm application services are stopped; operator intervention is required.' >&2
-        fi
+        # Stop both services even when Docker does not report them as running:
+        # a failed/partial `up` can leave containers that must stay down.
+        compose "$candidate" "$release" stop backend worker || true
         echo 'Schema migration may have committed; automatic image rollback blocked. Keep maintenance and recover with a schema-compatible release or restore the verified backup.' >&2
         exit "$failure"
     fi
@@ -87,7 +87,7 @@ rollback() {
     exit "$failure"
 }
 trap 'rollback $?' ERR
-compose "$candidate" "$release" stop backend worker
+stop_running_apps
 compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
 migration_may_have_committed=true
 compose "$candidate" "$release" run --rm --no-deps migrate
