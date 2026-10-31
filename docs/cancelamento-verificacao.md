@@ -19,7 +19,9 @@ Confirmação e cancelamento competem por atualizações condicionais no Postgre
 
 A confirmação também se torna idempotente para estado já resolvido. Duas confirmações concorrentes só publicam uma notificação. Somente o vencedor altera `verifiedAt` e agenda a notificação após o commit. O registro QUEUED permanece a fonte durável de trabalho.
 
-Após uma atualização em lote, o estado é lido como projeção escalar, evitando reutilizar a entidade `Scan` antiga do contexto JPA. Não se chama `save(scan)` depois da transição condicional. A migração 006 amplia a constraint de estado sem reescrever histórico; deve rodar pelo migrador antes do novo backend/worker.
+Após uma atualização em lote, o estado é lido como projeção escalar, evitando reutilizar a entidade `Scan` antiga do contexto JPA. Não se chama `save(scan)` depois da transição condicional. Edições ORM de metadados usam `DynamicUpdate`, alterando somente campos efetivamente editados: uma edição de nome carregada antes do cancelamento não pode salvar novamente o status antigo nem apagar a data de término. Há regressão concorrente real desse caso, vista falhando antes da correção.
+
+A migração 006 amplia a constraint de estado sem reescrever histórico; deve rodar pelo migrador antes do novo backend/worker.
 
 ## Retentativas no navegador
 
