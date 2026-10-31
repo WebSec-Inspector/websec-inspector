@@ -211,6 +211,9 @@ jobs:
           build-args: |
             VITE_API_URL=/api
             APP_REVISION=${{ github.sha }}
+            VITE_VERIFICATION_MAX_ATTEMPTS=${{ vars.VITE_VERIFICATION_MAX_ATTEMPTS || '20' }}
+            VITE_VERIFICATION_TIMEOUT_SECONDS=${{ vars.VITE_VERIFICATION_TIMEOUT_SECONDS || '300' }}
+            VITE_VERIFICATION_RETRY_SECONDS=${{ vars.VITE_VERIFICATION_RETRY_SECONDS || '15' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.component }}

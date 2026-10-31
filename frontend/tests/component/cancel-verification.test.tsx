@@ -71,3 +71,28 @@ test("se enfileiramento venceu nao anuncia cancelamento",async()=>{
   expect(screen.getByRole("link",{name:"Ver estado da varredura"})).toHaveAttribute("href","/scans/42");
   expect(http.history.post.filter(r=>r.url?.endsWith("confirm-verification"))).toHaveLength(0);
 });
+
+test("falha de rede nao afirma cancelamento nem retoma confirmacoes",async()=>{
+  http.onPost("/scans/42/cancel-verification").networkError();
+  await open();
+  fireEvent.click(screen.getByRole("button",{name:"Cancelar verificação"}));
+  await screen.findByText(/Cancelamento não confirmado/);
+  expect(screen.getByRole("button",{name:"Tentar cancelar novamente"})).toBeEnabled();
+  expect(screen.getByRole("button",{name:"Já verifiquei, iniciar varredura"})).toBeDisabled();
+  vi.useFakeTimers();await act(async()=>vi.advanceTimersByTimeAsync(60000));
+  expect(http.history.post.filter(r=>r.url?.endsWith("confirm-verification"))).toHaveLength(0);
+  expect(screen.queryByText("Cancelada")).not.toBeInTheDocument();
+});
+
+test("reiniciar ciclo automatico exige acao explicita e renova somente o orcamento",async()=>{
+  vi.stubEnv("VITE_VERIFICATION_MAX_ATTEMPTS","2");
+  http.onPost("/scans/42/confirm-verification").reply(409,{code:"VERIFICATION_PENDING",error:"DNS pendente"});
+  await open();vi.useFakeTimers();
+  await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Já verifiquei, iniciar varredura"})));
+  await act(async()=>vi.advanceTimersByTimeAsync(60000));
+  expect(http.history.post.filter(r=>r.url?.endsWith("confirm-verification"))).toHaveLength(2);
+  await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Reiniciar tentativas automáticas"})));
+  await act(async()=>vi.advanceTimersByTimeAsync(60000));
+  expect(http.history.post.filter(r=>r.url?.endsWith("confirm-verification"))).toHaveLength(4);
+  expect(http.history.post.filter(r=>r.url==="/scans")).toHaveLength(1);
+});

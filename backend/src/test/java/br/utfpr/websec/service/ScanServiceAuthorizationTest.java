@@ -230,6 +230,24 @@ class ScanServiceAuthorizationTest {
         verify(scans).queuePending(42L);
     }
 
+    @Test
+    void cancelamentoNaoPermiteAcessoAOutraConta() {
+        clientScan.setStatus(Scan.Status.PENDING_VERIFICATION);
+        assertThrows(ResourceNotFoundException.class,()->service.cancelVerification(otherClient.getEmail(),42L));
+        verify(scans,never()).cancelPending(anyLong());
+    }
+
+    @Test
+    void gerenteCancelaSomenteNoEscopoPermitidoSemAlterarToken() {
+        clientScan.setStatus(Scan.Status.PENDING_VERIFICATION);
+        when(scans.cancelPending(42L)).thenReturn(1);
+        when(scans.findState(42L)).thenReturn(Optional.of(new br.utfpr.websec.dto.ScanState(
+                Scan.Status.CANCELLED,java.time.Instant.parse("2026-10-31T12:00:00Z"),null)));
+        assertEquals("CANCELLED",service.cancelVerification(manager.getEmail(),42L).status());
+        assertEquals("token",clientDomain.getVerificationToken());
+        verify(scans).cancelPending(42L);
+    }
+
     private static User user(Long id, User.Role role) {
         User user = new User();
         ReflectionTestUtils.setField(user, "id", id);
