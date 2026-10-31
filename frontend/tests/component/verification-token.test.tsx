@@ -1,6 +1,6 @@
 import React from "react";
 import {beforeEach,afterEach,test,expect,vi} from "vitest";
-import {fireEvent,screen} from "@testing-library/react";
+import {act,fireEvent,screen,waitFor} from "@testing-library/react";
 import MockAdapter from "axios-mock-adapter";
 import {api} from "../../src/services/api";
 import VerificationTokenPage from "../../src/pages/VerificationTokenPage";
@@ -60,4 +60,32 @@ test("dominio existente exige escolha explicita sem substituir prova",async()=>{
   fireEvent.submit(screen.getByRole("textbox").closest("form")!);
   await screen.findByRole("button",{name:"Já verifiquei, iniciar varredura"});
   expect(JSON.parse(http.history.post[1].data).verificationChallengeId).toBeUndefined();
+});
+
+test("resposta atrasada nao aplica conflito a outro endereco editado durante envio",async()=>{
+  let finish!:(response:[number,unknown])=>void;
+  http.onGet(`/verification-challenges/${challenge.id}`).reply(200,challenge);
+  http.onPost("/scans").replyOnce(()=>new Promise<[number,unknown]>(resolve=>{finish=resolve;}));
+  renderPage(<SubmitScanPage/>,`/test?challenge=${challenge.id}`);
+  await screen.findByText(challenge.token,{selector:"code"});
+  const input=screen.getByRole("textbox");
+  fireEvent.change(input,{target:{value:"qa.example.invalid"}});
+  fireEvent.submit(input.closest("form")!);
+  await waitFor(()=>expect(typeof finish).toBe("function"));
+  expect(input).toBeDisabled();
+  fireEvent.change(input,{target:{value:"other.example.invalid"}});
+  expect(input).toHaveValue("qa.example.invalid");
+  await act(async()=>finish([409,{code:"EXISTING_DOMAIN_TOKEN",existingToken:"existing",hostname:"qa.example.invalid"}]));
+  await screen.findByRole("button",{name:"Usar token existente"});
+  expect(input).toHaveValue("qa.example.invalid");
+});
+
+test("desafio invalido nao permite submissao sem a selecao pretendida",async()=>{
+  http.onGet(`/verification-challenges/${challenge.id}`).reply(404,{error:"Desafio não encontrado"});
+  renderPage(<SubmitScanPage/>,`/test?challenge=${challenge.id}`);
+  await screen.findByRole("alert");
+  fireEvent.change(screen.getByRole("textbox"),{target:{value:"qa.example.invalid"}});
+  fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+  expect(screen.getByRole("button",{name:"Continuar"})).toBeDisabled();
+  expect(http.history.post).toHaveLength(0);
 });

@@ -289,7 +289,8 @@ export default function SubmitScanPage() {
             className="mb-4 w-full rounded-md border border-white/10 bg-ink px-3 py-2 outline-none focus:border-accent"
             placeholder="meusite.com.br ou https://meusite.com.br"
             value={url}
-            onChange={(e) => {setUrl(e.target.value);setConflict(null);setExistingToken(null);}}
+            onChange={(e) => {if(submitting||challengeLoading)return;setUrl(e.target.value);setConflict(null);setExistingToken(null);}}
+            disabled={submitting||challengeLoading}
             required
           />
           <button
