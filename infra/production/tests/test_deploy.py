@@ -125,6 +125,8 @@ if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'
         new_starts = [c for c in self.calls() if 'up' in c['args'] and c['tag'] == f'sha-{NEW_SHA}']
         self.assertEqual(1, len(new_starts))
         self.assertEqual(['postgres', 'redis'], new_starts[0]['args'][-2:])
+        self.assertIn('automatic image rollback blocked', result.stderr)
+        self.assertFalse(any('up' in c['args'] and c['tag'] == f'sha-{OLD_SHA}' for c in self.calls()))
 
     def test_application_failure_after_migration_blocks_image_rollback(self):
         self.previous()

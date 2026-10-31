@@ -11,7 +11,7 @@ Foi escolhido esse executável compartilhado em vez de introduzir Flyway e uma s
 ## Primeira adoção de banco existente
 
 1. Fazer inventário do schema e backup validado, incluindo teste de restauração em banco separado. Preservar o dump anterior ao deploy.
-2. Conferir se as cinco tabelas e colunas básicas correspondem à aplicação. Tabelas adicionais ou schema parcial bloqueiam a adoção, mesmo com a opção explícita. A checagem estrutural não substitui o inventário manual de constraints, tipos e dados.
+2. Conferir se as cinco tabelas e colunas básicas correspondem à aplicação. Tabelas adicionais ou schema parcial bloqueiam a adoção, mesmo com a opção explícita. A validação final também exige tipos, tamanhos, nulabilidade, identidade e chaves primárias/únicas/estrangeiras compatíveis. O inventário manual de dados e constraints adicionais continua necessário.
 3. Definir `SCHEMA_ADOPT_LEGACY=true` apenas para a primeira execução auditada. Não há baseline automático. Nunca usar isso para aceitar um schema desconhecido.
 4. Executar a versão candidata primeiro em staging restaurado. Conferir contas, tokens e achados antes/depois e o funcionamento do backend com ddl-auto=validate.
 5. Após sucesso, voltar `SCHEMA_ADOPT_LEGACY=false`. Essa flag não ignora checksum, versão futura ou gaps de histórico.
@@ -20,7 +20,7 @@ SQLs históricos de `infra/migrations` continuam disponíveis para referência e
 
 ## Falha e recuperação
 
-- Antes do commit: a transação é revertida e o deploy pode restaurar as imagens anteriores.
+- Antes de invocar o migrador: o deploy pode restaurar as imagens anteriores. Uma vez invocado, um erro de transporte pode ocultar um commit; o rollback automático passa a ser bloqueado mesmo quando o cliente retorna erro. A transação SQL em si reverte alterações em caso de erro de SQL.
 - Depois do commit: a volta automática para imagens antigas é bloqueada de forma conservadora, mesmo se a execução foi no-op. Backend/worker ficam parados para evitar acesso incompatível. A revisão anterior em `.release.env` é um registro da última liberação verificada, não prova de que continua ativa.
 - Recuperar usando uma imagem compatível com o schema ou restaurar o backup em manutenção, com procedimento coordenado. Nunca fazer downgrade de schema nem restaurar dados automaticamente.
 - `.release.env` e `current` só são atualizados após a verificação da nova revisão. Backup, mensagens operacionais e log do job de migração permitem identificar a tentativa falha.

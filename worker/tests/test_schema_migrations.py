@@ -107,6 +107,25 @@ class SchemaMigrationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "checksum"):
             self.migrate()
 
+    def test_complete_legacy_with_wrong_type_or_missing_fk_is_rejected(self):
+        self.legacy()
+        with self.conn.cursor() as cur:
+            cur.execute('ALTER TABLE users ALTER COLUMN name TYPE integer USING 1')
+        self.conn.commit()
+        with self.assertRaisesRegex(RuntimeError, 'type'):
+            self.migrate(adopt_legacy=True)
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('websec_schema_history')")
+            self.assertIsNone(cur.fetchone()[0])
+            cur.execute('ALTER TABLE users ALTER COLUMN name TYPE varchar(255) USING name::text')
+            cur.execute('ALTER TABLE domains DROP CONSTRAINT domains_user_id_fkey')
+        self.conn.commit()
+        with self.assertRaisesRegex(RuntimeError, 'constraint'):
+            self.migrate(adopt_legacy=True)
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('websec_schema_history')")
+            self.assertIsNone(cur.fetchone()[0])
+
 
 if __name__ == '__main__':
     unittest.main()
