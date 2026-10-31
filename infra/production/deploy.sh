@@ -36,6 +36,10 @@ compose "$candidate" "$release" pull
 if $had_previous; then
     WEBSEC_ROOT="$root" bash "$release/backup.sh"
 fi
+# Approval/history errors must fail while the old writers are still running.
+# This command performs no migrations and does not create schema history.
+compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
+compose "$candidate" "$release" run --rm --no-deps migrate python schema_migrations.py --preflight
 
 migration_may_have_committed=false
 rollback() {
@@ -64,7 +68,6 @@ rollback() {
     exit "$failure"
 }
 trap 'rollback $?' ERR
-compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
 compose "$candidate" "$release" stop backend worker
 migration_may_have_committed=true
 compose "$candidate" "$release" run --rm --no-deps migrate
