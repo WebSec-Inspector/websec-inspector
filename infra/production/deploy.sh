@@ -31,6 +31,14 @@ compose() {
     docker compose --project-name websec-production --env-file "$root/.env" \
         --env-file "$version_file" -f "$config_dir/compose.yml" "$@"
 }
+
+stop_running_service() {
+    local service=$1
+    if compose "$candidate" "$release" ps --services --status running 2>/dev/null | grep -Fxq "$service"; then
+        compose "$candidate" "$release" stop "$service"
+    fi
+}
+
 compose "$candidate" "$release" config --quiet
 compose "$candidate" "$release" pull
 if $had_previous; then
@@ -43,7 +51,8 @@ rollback() {
     trap - ERR
     if $migration_may_have_committed; then
         # Never start an older application against an upgraded schema.
-        compose "$candidate" "$release" stop backend worker || true
+        stop_running_service backend
+        stop_running_service worker
         echo 'Schema migration may have committed; automatic image rollback blocked. Keep maintenance and recover with a schema-compatible release or restore the verified backup.' >&2
         exit "$failure"
     fi
@@ -65,7 +74,8 @@ rollback() {
 }
 trap 'rollback $?' ERR
 compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
-compose "$candidate" "$release" stop backend worker
+stop_running_service backend
+stop_running_service worker
 migration_may_have_committed=true
 compose "$candidate" "$release" run --rm --no-deps migrate
 compose "$candidate" "$release" up -d --wait --wait-timeout 600
