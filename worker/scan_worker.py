@@ -1,184 +1,105 @@
-"""
-WebSec Inspector — Worker de varredura.
-
-Responsável por:
-  1. Consumir mensagens da fila Redis (`scan-queue`) publicadas pelo backend.
-  2. Executar uma varredura OWASP ZAP (baseline) na URL do domínio associado.
-  3. Classificar cada achado com um score CVSS (simplificado neste esqueleto).
-  4. Persistir os resultados no PostgreSQL.
-  5. Sinalizar geração de relatório / envio de e-mail (delegado a report_service).
-
-Este é um esqueleto funcional: a integração real com a API do OWASP ZAP e o
-schema do banco devem ser conferidos/ajustados pelo time de sec/infra.
-"""
-
+"""Recoverable scan worker. PostgreSQL owns work; Redis only wakes pollers."""
+import logging
 import os
 import time
-import logging
-import json
+from urllib.error import URLError
 
-import redis
 import psycopg2
-import requests
+import redis
 
 from report_service import generate_pdf_report, send_report_email
-from finding_service import save_findings
-from zap_parser import parse_zap_alerts
+from zap_parser import parse_zap_alerts, ZapParsingError
+from zap_runner import run_scan
+from scan_jobs import acquire_scanner, claim_next, complete, fail, heartbeat, LeaseLost
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("scan_worker")
-
 QUEUE_KEY = "scan-queue"
-
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": os.getenv("DB_PORT", "5432"),
     "dbname": os.getenv("DB_NAME", "websec"),
     "user": os.getenv("DB_USER", "websec"),
     "password": os.getenv("DB_PASSWORD", "websec"),
+    "connect_timeout": 10,
+    "keepalives": 1, "keepalives_idle": 15, "keepalives_interval": 5, "keepalives_count": 3,
+    "options": "-c statement_timeout=10000 -c lock_timeout=5000",
 }
-
-ZAP_API_URL = os.getenv("ZAP_API_URL", "http://zap:8090")
-ZAP_STARTUP_TIMEOUT = int(os.getenv("ZAP_STARTUP_TIMEOUT", "60"))
-
-
-def wait_for_zap():
-    """Aguarda o ZAP API ficar disponivel antes de executar scans."""
-    url = f"{ZAP_API_URL}/UI/"
-    start = time.time()
-    while time.time() - start < ZAP_STARTUP_TIMEOUT:
-        try:
-            resp = requests.get(url, timeout=5)
-            if resp.status_code < 500:
-                log.info("ZAP API disponivel em %s", ZAP_API_URL)
-                return
-        except requests.RequestException:
-            pass
-        log.info("Aguardando ZAP API inicializar...")
-        time.sleep(3)
-    raise ConnectionError(f"ZAP API nao disponivel em {ZAP_API_URL} apos {ZAP_STARTUP_TIMEOUT}s")
 
 
 def get_connection():
     return psycopg2.connect(**DB_CONFIG)
 
 
-def fetch_scan_target(conn, scan_id: int) -> str:
-    """Busca o hostname associado ao scan para montar a URL alvo."""
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT d.hostname
-            FROM scans s
-            JOIN domains d ON d.id = s.domain_id
-            WHERE s.id = %s
-            """,
-            (scan_id,),
-        )
-        row = cur.fetchone()
-        if not row:
-            raise ValueError(f"Scan {scan_id} não encontrado")
-        return row[0]
+def fetch_scan_target(conn, scan_id):
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT d.hostname FROM scans s JOIN domains d ON d.id=s.domain_id WHERE s.id=%s AND s.deleted_at IS NULL",(scan_id,))
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError(f"Scan {scan_id} nao encontrado")
+            return row[0]
 
 
-def update_scan_status(conn, scan_id: int, status: str, finished: bool = False):
-    with conn.cursor() as cur:
-        if finished:
-            cur.execute(
-                "UPDATE scans SET status = %s, finished_at = now() WHERE id = %s",
-                (status, scan_id),
-            )
-        else:
-            cur.execute(
-                "UPDATE scans SET status = %s, started_at = COALESCE(started_at, now()) WHERE id = %s",
-                (status, scan_id),
-            )
-    conn.commit()
-
-
-def run_zap_baseline(target_url: str) -> list[dict]:
-    """
-    Executa o scan baseline e retorna os alertas brutos da API Core do ZAP.
-
-    Requer uma instância ZAP acessível em ZAP_API_URL.
-    """
-    from zapv2 import ZAPv2
-
-    wait_for_zap()
-
-    zap = ZAPv2(proxies={"http": ZAP_API_URL, "https": ZAP_API_URL})
-
-    log.info("Iniciando spider em %s", target_url)
-    zap.spider.scan(target_url)
-    while int(zap.spider.status()) < 100:
-        time.sleep(2)
-
-    log.info("Iniciando passive/active scan (baseline) em %s", target_url)
-    #original
-    #zap.ascan.scan(target_url)
-    #while int(zap.ascan.status()) < 100:
-        #time.sleep(5)
-    
-    #novo:
-    scan_id = zap.ascan.scan(target_url)
-    if not scan_id or not str(scan_id).isdigit():
-         raise RuntimeError(
-        f"ZAP não iniciou a varredura ativa para {target_url}. "
-        f"Retorno recebido: {scan_id!r}"
-    )
-    while int(zap.ascan.status(scan_id)) < 100:
-        time.sleep(5)
-
-    return zap.core.alerts(baseurl=target_url)
-
-
-def process_scan(conn, scan_id: int):
-    log.info("Processando scan %s", scan_id)
-    update_scan_status(conn, scan_id, "RUNNING")
-
-    hostname = fetch_scan_target(conn, scan_id)
-    if hostname == "juice-shop":
-        target_url = "http://juice-shop:3000"
-    else:
-        target_url = f"https://{hostname}"
-    #target_url = f"https://{hostname}"
-
-
+def process_scan(conn, claim):
+    log.info("Processing scan %s attempt %s",claim.scan_id,claim.attempt)
     try:
-        raw_alerts = run_zap_baseline(target_url)
-        findings = parse_zap_alerts(raw_alerts)
-        save_findings(conn, scan_id, findings)
-        update_scan_status(conn, scan_id, "COMPLETED", finished=True)
-
-        pdf_path = generate_pdf_report(scan_id, hostname, findings)
-        send_report_email(scan_id, pdf_path)
-
-        log.info("Scan %s concluído com %d achados", scan_id, len(findings))
-    except Exception:
-        log.exception("Falha ao processar scan %s", scan_id)
-        update_scan_status(conn, scan_id, "FAILED", finished=True)
+        hostname = fetch_scan_target(conn,claim.scan_id)
+        # Original URL preservation is tracked separately in #28.
+        target = 'http://juice-shop:3000' if hostname == 'juice-shop' else f'https://{hostname}'
+        alerts = run_scan(target,lambda: heartbeat(conn,claim))
+        findings = parse_zap_alerts(alerts)
+        complete(conn,claim,findings)
+    except LeaseLost:
+        log.warning("Discarded stale attempt for scan %s",claim.scan_id)
+        return
+    except Exception as exc:
+        # Avoid PostgreSQL diagnostics / findings / authentication data in logs.
+        log.error("Scan %s failed: %s",claim.scan_id,type(exc).__name__)
+        conn.rollback()
+        retryable = isinstance(exc,(TimeoutError,ConnectionError,URLError,psycopg2.OperationalError))
+        try:
+            fail(conn,claim,'SCAN_TIMEOUT' if isinstance(exc,TimeoutError) else 'SCAN_ERROR',retryable=retryable)
+        except LeaseLost:
+            log.warning("Failure ignored for stale attempt %s",claim.scan_id)
+        return
+    # A completed scan is independent of PDF / SMTP. Full persisted report states
+    # and independent delivery retry are the following plan tasks (#29/#31).
+    try:
+        pdf = generate_pdf_report(claim.scan_id,hostname,findings)
+        send_report_email(claim.scan_id,pdf)
+    except Exception as exc:
+        log.error("Scan %s completed; report/delivery failed: %s",claim.scan_id,type(exc).__name__)
 
 
 def main():
-    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-    log.info("Worker iniciado. Aguardando mensagens em '%s'...", QUEUE_KEY)
-
+    from schema_migrations import migrate
+    conn = get_connection()
+    try:
+        migrate(conn,check_only=True)
+    finally:
+        conn.close()
+    notifier = redis.Redis(host=os.getenv('REDIS_HOST','localhost'),port=int(os.getenv('REDIS_PORT','6379')),
+                           socket_connect_timeout=3,socket_timeout=7)
     while True:
-        item = r.brpop(QUEUE_KEY, timeout=5)
-        if item is None:
-            continue
-        _, scan_id_str = item
-        scan_id = int(scan_id_str)
-
-        conn = get_connection()
+        conn = None
         try:
-            process_scan(conn, scan_id)
+            conn = get_connection()
+            if acquire_scanner(conn):
+                claim = claim_next(conn)
+                if claim is not None:
+                    process_scan(conn,claim)
+                    continue
+        except Exception as exc:
+            log.error('Worker iteration failed: %s',type(exc).__name__)
         finally:
-            conn.close()
+            if conn is not None: conn.close()
+        try:
+            # Payloads are untrusted wakeup hints, never commands or ownership.
+            notifier.brpop(QUEUE_KEY,timeout=5)
+        except redis.RedisError:
+            time.sleep(5)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

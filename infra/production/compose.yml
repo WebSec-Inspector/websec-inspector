@@ -67,6 +67,20 @@ services:
       MP_MAX_MESSAGES: "100"
     volumes: [mailpit_data:/data]
 
+  migrate:
+    image: ghcr.io/websec-inspector/websec-inspector-worker:${IMAGE_TAG:?Set IMAGE_TAG to an immutable commit tag}
+    restart: "no"
+    mem_limit: ${WORKER_MEMORY_LIMIT:-256m}
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      <<: *database
+      SCHEMA_ADOPT_LEGACY: ${SCHEMA_ADOPT_LEGACY:-false}
+    command: [python, schema_migrations.py]
+
   backend:
     <<: *defaults
     image: ghcr.io/websec-inspector/websec-inspector-backend:${IMAGE_TAG:?Set IMAGE_TAG to an immutable commit tag}
@@ -75,6 +89,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
     environment:
       <<: *database
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the server .env}
@@ -96,6 +111,7 @@ services:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       zap: {condition: service_healthy}
+      backend: {condition: service_healthy}
     environment:
       <<: *database
       ZAP_API_URL: http://zap:8090
