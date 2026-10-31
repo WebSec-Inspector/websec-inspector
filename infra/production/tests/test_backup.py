@@ -81,6 +81,16 @@ sys.exit(2)
         self.assertTrue((old/'keep').exists())
         self.assertNotIn('Backup created:',result.stdout)
 
+    @unittest.skipUnless(os.name == 'posix', 'POSIX file permissions are required')
+    def test_explicit_release_metadata_allows_backup_when_default_is_unreadable(self):
+        alternate=self.root/'previous-release.env'
+        alternate.write_text(f'RELEASE_DIR={self.root}\nIMAGE_TAG=sha-test\n')
+        (self.root/'.release.env').chmod(0)
+        result=self.run_backup(WEBSEC_RELEASE_ENV=str(alternate))
+        self.assertEqual(0,result.returncode,result.stderr)
+        self.assertIn('Backup created:',result.stdout)
+        self.assertTrue(any(str(alternate) in call for call in self.calls()))
+
     def test_success_does_not_prune_legacy_or_incomplete_backups(self):
         for i in range(9):
             old=self.root/'backups'/f'20200101T00000{i}-fixture'

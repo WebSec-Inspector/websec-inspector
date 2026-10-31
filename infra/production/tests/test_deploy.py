@@ -75,6 +75,17 @@ if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'
         (self.root / ".release.env").write_text(f"IMAGE_TAG=sha-{OLD_SHA}\nRELEASE_DIR={old}\n")
         self.running_services.write_text("backend\nworker\n")
 
+    @unittest.skipUnless(os.name == "posix", "POSIX file permissions are required")
+    def test_unreadable_release_metadata_is_recovered_from_current(self):
+        self.previous()
+        old = self.root / "releases" / OLD_SHA
+        (self.root / "current").symlink_to(old, target_is_directory=True)
+        (self.root / ".release.env").chmod(0)
+        result = self.run_deploy()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("recovered it from current", result.stderr)
+        self.assertIn(f"sha-{NEW_SHA}", (self.root / ".release.env").read_text())
+
     def run_deploy(self, sha=NEW_SHA, **overrides):
         self.assertTrue(SCRIPT.exists(), "deploy.sh must implement the deployment contract")
         shutil.copyfile(SCRIPT, self.release / "deploy.sh")

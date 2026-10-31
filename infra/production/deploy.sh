@@ -21,7 +21,22 @@ trap 'rm -f "$candidate" "$previous"' EXIT
 printf 'IMAGE_TAG=sha-%s\nRELEASE_DIR=%s\n' "$sha" "$release" > "$candidate"
 had_previous=false
 if [[ -f $root/.release.env ]]; then
-    cp "$root/.release.env" "$previous"
+    if [[ -r $root/.release.env ]]; then
+        cp "$root/.release.env" "$previous"
+    else
+        # Older/manual root deployments may leave this private metadata unreadable
+        # to the dedicated deploy user. The atomically maintained current link
+        # identifies the last successfully published release.
+        current_release=$(realpath -e -- "$root/current" 2>/dev/null || true)
+        current_sha=${current_release##*/}
+        [[ $current_release == "$root/releases/$current_sha" &&
+            $current_sha =~ ^[a-f0-9]{40}$ && -f $current_release/compose.yml ]] || {
+            echo 'The previous release metadata is unreadable and current does not identify a valid release; repair ownership with sudo before deploying.' >&2
+            exit 2
+        }
+        printf 'IMAGE_TAG=sha-%s\nRELEASE_DIR=%s\n' "$current_sha" "$current_release" > "$previous"
+        echo 'Previous release metadata is unreadable; recovered it from current.' >&2
+    fi
     had_previous=true
 fi
 
@@ -49,7 +64,7 @@ stop_running_apps() {
 compose "$candidate" "$release" config --quiet
 compose "$candidate" "$release" pull
 if $had_previous; then
-    WEBSEC_ROOT="$root" bash "$release/backup.sh"
+    WEBSEC_ROOT="$root" WEBSEC_RELEASE_ENV="$previous" bash "$release/backup.sh"
 fi
 # Approval/history errors must fail while the old writers are still running.
 # This command performs no migrations and does not create schema history.
