@@ -38,7 +38,9 @@ if $had_previous; then
 fi
 # Approval/history errors must fail while the old writers are still running.
 # This command performs no migrations and does not create schema history.
-compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
+if ! $had_previous; then
+    compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
+fi
 compose "$candidate" "$release" run --rm --no-deps migrate python schema_migrations.py --preflight
 
 migration_may_have_committed=false
@@ -69,6 +71,7 @@ rollback() {
 }
 trap 'rollback $?' ERR
 compose "$candidate" "$release" stop backend worker
+compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
 migration_may_have_committed=true
 compose "$candidate" "$release" run --rm --no-deps migrate
 compose "$candidate" "$release" up -d --wait --wait-timeout 600

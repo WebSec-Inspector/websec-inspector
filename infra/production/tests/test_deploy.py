@@ -84,15 +84,15 @@ if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'
         self.assertEqual((self.root / ".release.env").read_text(), before)
         self.assertFalse(any("up" in event["args"] for event in self.calls()))
 
-    def test_failed_infrastructure_start_preserves_existing_application(self):
+    def test_failed_infrastructure_start_restores_previous_configuration(self):
         self.previous()
         before = (self.root / ".release.env").read_text()
         result = self.run_deploy(FAIL_UP="1")
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual((self.root / ".release.env").read_text(), before)
         starts = [event["tag"] for event in self.calls() if "up" in event["args"]]
-        self.assertEqual(starts, [f"sha-{NEW_SHA}"])
-        self.assertFalse(any('stop' in event['args'] for event in self.calls()))
+        self.assertEqual(starts, [f"sha-{NEW_SHA}",f"sha-{OLD_SHA}"])
+        self.assertFalse(any('run' in c['args'] and 'migrate' in c['args'] and '--preflight' not in c['args'] for c in self.calls()))
 
     def test_failed_https_verification_restores_previous_version(self):
         self.previous()
@@ -158,6 +158,7 @@ if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'
         self.assertEqual(before,(self.root/'.release.env').read_text())
         self.assertFalse(any('stop' in event['args'] for event in self.calls()))
         self.assertFalse(any('run' in c['args'] and 'migrate' in c['args'] and '--preflight' not in c['args'] for c in self.calls()))
+        self.assertFalse(any('up' in c['args'] for c in self.calls()))
 
     def test_concurrent_deploy_is_rejected_before_docker(self):
         with open(self.root / ".deploy.lock", "w") as lock:
