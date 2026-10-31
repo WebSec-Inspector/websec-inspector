@@ -22,6 +22,7 @@ class DeploymentTests(unittest.TestCase):
         self.bin = self.root / "bin"
         self.bin.mkdir()
         self.events = self.root / "events"
+        self.running_services = self.root / "running-services"
         (self.root / ".env").write_text("SITE_HOST=example.test\n")
         (self.release / "compose.yml").write_text("services: {}\n")
         (self.release / "Caddyfile").write_text("example.test {}\n")
@@ -40,6 +41,15 @@ for index, arg in enumerate(args):
                 if line.startswith('IMAGE_TAG='): tag = line.split('=', 1)[1]
 with open(os.environ['EVENTS'], 'a') as output:
     output.write(json.dumps({'command': pathlib.Path(sys.argv[0]).name, 'args': args, 'tag': tag}) + '\\n')
+running_file = pathlib.Path(os.environ['RUNNING_SERVICES_FILE'])
+if 'ps' in args:
+    if running_file.exists():
+        print(running_file.read_text(), end='')
+    sys.exit(0)
+if 'stop' in args:
+    stopped = set(args[args.index('stop') + 1:])
+    current = set(running_file.read_text().splitlines()) if running_file.exists() else set()
+    running_file.write_text('\\n'.join(sorted(current - stopped)) + ('\\n' if current - stopped else ''))
 if 'pull' in args and os.environ.get('FAIL_PULL') == '1': sys.exit(12)
 if 'up' in args and tag.endswith('b' * 40) and os.environ.get('FAIL_UP') == '1': sys.exit(13)
 if '--preflight' in args and os.environ.get('FAIL_PREFLIGHT') == '1': sys.exit(16)
@@ -50,19 +60,26 @@ if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'
     print(os.environ.get('VERSION_SHA', 'b' * 40))
 ''')
             fake.chmod(0o755)
+        if os.name != "posix":
+            fake_flock = self.bin / "flock"
+            fake_flock.write_text("#!/usr/bin/env python3\nraise SystemExit(0)\n")
+            fake_flock.chmod(0o755)
         self.env = dict(os.environ, WEBSEC_ROOT=str(self.root),
-                        EVENTS=str(self.events), PATH=f"{self.bin}:{os.environ['PATH']}")
+                        EVENTS=str(self.events), RUNNING_SERVICES_FILE=str(self.running_services),
+                        PATH=os.pathsep.join((str(self.bin), os.environ["PATH"])))
 
     def previous(self):
         old = self.root / "releases" / OLD_SHA
         old.mkdir(parents=True)
         (old / "compose.yml").write_text("services: {}\n")
         (self.root / ".release.env").write_text(f"IMAGE_TAG=sha-{OLD_SHA}\nRELEASE_DIR={old}\n")
+        self.running_services.write_text("backend\nworker\n")
 
     def run_deploy(self, sha=NEW_SHA, **overrides):
         self.assertTrue(SCRIPT.exists(), "deploy.sh must implement the deployment contract")
         shutil.copyfile(SCRIPT, self.release / "deploy.sh")
-        return subprocess.run(["bash", str(self.release / "deploy.sh"), sha],
+        bash = shutil.which("bash", path=self.env["PATH"]) or "bash"
+        return subprocess.run([bash, str(self.release / "deploy.sh"), sha],
                               env=dict(self.env, **overrides), capture_output=True, text=True)
 
     def calls(self):
@@ -107,6 +124,11 @@ if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'
         self.assertIn(f"sha-{NEW_SHA}", (self.root / ".release.env").read_text())
         for event in self.calls():
             self.assertFalse(set(event["args"]) & {"down", "--volumes", "volume", "prune"})
+
+    def test_fresh_deploy_skips_stop_when_no_app_services_are_running(self):
+        result = self.run_deploy()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(any("stop" in event["args"] for event in self.calls()))
 
     def test_first_failed_deploy_does_not_record_successful_release(self):
         result = self.run_deploy(FAIL_UP="1")

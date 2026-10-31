@@ -7,5 +7,6 @@ public record DomainResponse(
         Long id,
         String hostname,
         boolean verified,
-        Instant verifiedAt
+        Instant verifiedAt,
+        boolean isActive
 ) {}
