@@ -75,6 +75,10 @@ class ScanJobTests(unittest.TestCase):
         self.conn.commit()
         self.assertIsNone(claim_next(self.conn))
         with self.conn.cursor() as cur:
+            cur.execute("UPDATE scans SET status='CANCELLED'")
+        self.conn.commit()
+        self.assertIsNone(claim_next(self.conn))
+        with self.conn.cursor() as cur:
             cur.execute("UPDATE scans SET status='QUEUED',deleted_at=now()")
         self.conn.commit()
         self.assertIsNone(claim_next(self.conn))

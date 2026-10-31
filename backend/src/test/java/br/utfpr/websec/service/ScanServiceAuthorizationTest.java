@@ -223,10 +223,11 @@ class ScanServiceAuthorizationTest {
     void falhaDeNotificacaoNaoPerdeTrabalhoConfirmadoNoBanco() {
         clientScan.setStatus(Scan.Status.PENDING_VERIFICATION);
         when(verification.isVerified(anyString(), anyString())).thenReturn(true);
+        when(scans.queuePending(42L)).thenReturn(1);
         when(redis.opsForList()).thenThrow(new org.springframework.data.redis.RedisConnectionFailureException("offline"));
         ScanResponse response = service.confirmVerificationAndQueue(client.getEmail(), 42L, false);
         assertEquals("QUEUED", response.status());
-        verify(scans).save(clientScan);
+        verify(scans).queuePending(42L);
     }
 
     private static User user(Long id, User.Role role) {

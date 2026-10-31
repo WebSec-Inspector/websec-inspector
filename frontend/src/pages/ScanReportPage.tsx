@@ -115,7 +115,7 @@ export default function ScanReportPage() {
         )}
         {scan.finishedAt && (
           <p className="mt-2 text-xs text-slate-500">
-            Concluída em {new Date(scan.finishedAt).toLocaleString("pt-BR")}
+            {scan.status==="CANCELLED"?"Cancelada em":"Concluída em"} {new Date(scan.finishedAt).toLocaleString("pt-BR")}
           </p>
         )}
       </div>
@@ -154,7 +154,7 @@ export default function ScanReportPage() {
         </div>
       )}
 
-      {scan.status === "FAILED" && (
+      {(scan.status === "FAILED" || scan.status === "CANCELLED") && (
         <div className="mb-6 flex flex-wrap gap-3">
           <Link
             to="/scans/novo"
@@ -178,6 +178,7 @@ export default function ScanReportPage() {
 }
 
 function Findings({ scan, transient }: { scan: ScanResponse; transient: boolean }) {
+  if(scan.status==="CANCELLED")return <StatePanel title="Verificação cancelada"><p>Nenhuma varredura foi iniciada. O token do domínio continua válido para uma nova execução.</p></StatePanel>;
   if (scan.findings.length === 0) {
     if (scan.status === "COMPLETED") {
       return (

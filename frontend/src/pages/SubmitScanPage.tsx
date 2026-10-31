@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { submitScan, confirmVerification, getScan, getVerificationChallenge, VerificationChallenge } from "../services/api";
+import { submitScan, getScan, getVerificationChallenge, VerificationChallenge } from "../services/api";
 import { useDomains } from "../context/DomainContext";
 import { toApiError } from "../lib/apiError";
 
-const POLL_INTERVAL_SECONDS = 15;
+import {useVerification} from "../hooks/useVerification";
+import {statusLabel} from "../lib/scanStatus";
 
 /** Query param que retoma a verificação de um scan já existente. */
 export const RESUME_SCAN_PARAM = "scan";
@@ -28,14 +29,11 @@ export default function SubmitScanPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Estado da verificação automática: enquanto pendingMessage estiver
-  // preenchido, o botão continua tentando em segundo plano até a
-  // propagação do DNS/meta tag terminar, em vez de mostrar um erro fatal.
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [nextRetryIn, setNextRetryIn] = useState<number | null>(null);
-  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const verification=useVerification(scanId,scan=>{
+    if(scan.status!=="CANCELLED"){selectDomain(scan.domainId);refreshDomains();}
+    navigate(`/scans/${scan.id}`);
+  });
+  const {pendingMessage,checking,nextRetryIn}=verification;
 
   useEffect(()=>{
     let active=true;
@@ -53,10 +51,6 @@ export default function SubmitScanPage() {
       .finally(()=>{if(active)setChallengeLoading(false);});
     return()=>{active=false;};
   },[challengeId,searchParams]);
-
-  useEffect(() => {
-    return () => clearPolling();
-  }, []);
 
   /*
    * Retomada de uma verificação pendente. Sem isto, voltar da tela de
@@ -105,25 +99,6 @@ export default function SubmitScanPage() {
       active = false;
     };
   }, [searchParams, navigate, selectDomain]);
-
-  function clearPolling() {
-    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    pollTimeoutRef.current = null;
-    countdownRef.current = null;
-    setNextRetryIn(null);
-  }
-
-  function schedulePoll() {
-    clearPolling();
-    setNextRetryIn(POLL_INTERVAL_SECONDS);
-    countdownRef.current = setInterval(() => {
-      setNextRetryIn((prev) => (prev && prev > 1 ? prev - 1 : 0));
-    }, 1000);
-    pollTimeoutRef.current = setTimeout(() => {
-      attemptConfirm();
-    }, POLL_INTERVAL_SECONDS * 1000);
-  }
 
   function normalizeUrl(raw: string): string {
     let url = raw.trim();
@@ -206,53 +181,6 @@ export default function SubmitScanPage() {
     return toApiError(err).message;
   }
 
-  /**
-   * Tenta confirmar a verificação. Se o backend responder que a propagação
-   * ainda não terminou (VERIFICATION_PENDING), não trata como erro: mostra
-   * um aviso e agenda uma nova tentativa automática, mantendo o usuário na
-   * mesma tela até a verificação realmente passar.
-   */
-  async function attemptConfirm() {
-    if (!scanId) return;
-    setChecking(true);
-    try {
-      const scan = await confirmVerification(scanId);
-      clearPolling();
-      // O domínio acabou de ser marcado como verificado: atualiza a lista
-      // para o Dashboard refletir o novo estado.
-      selectDomain(scan.domainId);
-      refreshDomains();
-      navigate(`/scans/${scanId}`);
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string; code?: string } } };
-      const code = axiosErr?.response?.data?.code;
-      if (code === "VERIFICATION_PENDING") {
-        setError(null);
-        setPendingMessage(
-          axiosErr.response?.data?.error ??
-            "Ainda não encontramos o registro de verificação. A propagação de DNS pode levar alguns minutos."
-        );
-        schedulePoll();
-      } else {
-        clearPolling();
-        setPendingMessage(null);
-        setError(resolveErrorMessage(err));
-      }
-    } finally {
-      setChecking(false);
-    }
-  }
-
-  function handleConfirmClick() {
-    // Clique manual: tenta na hora e reinicia o ciclo de espera automática.
-    attemptConfirm();
-  }
-
-  function handleCancelPolling() {
-    clearPolling();
-    setPendingMessage(null);
-  }
-
   function copyToClipboard(text: string, label: string) {
     navigator.clipboard.writeText(text);
     setCopied(label);
@@ -264,6 +192,7 @@ export default function SubmitScanPage() {
       <h1 className="mb-6 text-xl font-semibold">Nova varredura de segurança</h1>
 
       {error && <p className="mb-4 text-sm text-risk-high">{error}</p>}
+      {verification.error&&<p role="alert" className="mb-4 text-sm text-risk-high">{verification.error}</p>}
       {challengeLoading&&<p className="mb-4 text-sm">Recuperando token selecionado...</p>}
       {challengeError&&<p role="alert" className="mb-4 text-sm text-risk-high">{challengeError} <Link to="/verificacao/token">Voltar aos tokens</Link></p>}
       {challenge&&step==="form"&&<div className="mb-4 rounded border border-white/10 p-4 text-sm"><p>Token antecipado selecionado:</p><code className="break-all select-all">{challenge.token}</code>{challenge.hostname&&<p className="mt-2">Vinculado a {challenge.hostname}. Pode ser reutilizado apenas nesse site.</p>}</div>}
@@ -377,25 +306,34 @@ export default function SubmitScanPage() {
               )}
               <button
                 type="button"
-                onClick={handleCancelPolling}
+                onClick={verification.pause}
                 className="text-xs text-slate-400 hover:text-white underline"
               >
-                Cancelar verificação automática
+                Pausar tentativas automáticas
               </button>
             </div>
           )}
 
+          {verification.limitReached&&!verification.cancelRequested&&<p role="status" className="text-sm text-amber-300">Limite de tentativas automáticas atingido. Você pode tentar uma vez manualmente, reiniciar as tentativas ou cancelar.</p>}
+          {verification.paused&&!verification.limitReached&&!verification.cancelRequested&&<p className="text-sm text-slate-400">Tentativas automáticas pausadas. A próxima tentativa será apenas manual.</p>}
+          {verification.stateChanged&&<p role="alert" className="text-sm text-amber-300">A verificação não foi cancelada: a execução está em “{statusLabel(verification.stateChanged)}”. Esta ação não interrompe o scanner.</p>}
+          {verification.cancelError&&<p role="alert" className="text-sm text-risk-high">{verification.cancelError}</p>}
+          {(verification.stateChanged||verification.cancelError)&&<Link to={`/scans/${scanId}`} className="block text-sm text-accent">Ver estado da varredura</Link>}
           <button
-            onClick={handleConfirmClick}
-            disabled={checking}
+            onClick={verification.confirm}
+            disabled={checking||verification.cancelRequested}
             className="w-full rounded-md bg-accent py-2 font-medium text-ink hover:opacity-90 disabled:opacity-60"
           >
             {checking
               ? "Verificando..."
+              : verification.paused
+              ? "Tentar verificação manual"
               : pendingMessage
               ? "Tentar agora"
               : "Já verifiquei, iniciar varredura"}
           </button>
+          {verification.paused&&!verification.cancelRequested&&<button type="button" disabled={checking} onClick={verification.restart} className="w-full rounded border border-white/20 py-2 text-sm">Reiniciar tentativas automáticas</button>}
+          {!verification.stateChanged&&<button type="button" disabled={verification.cancelling} onClick={verification.cancel} className="w-full rounded border border-white/20 py-2 text-sm disabled:opacity-60">{verification.cancelling?"Cancelando...":verification.cancelError?"Tentar cancelar novamente":"Cancelar verificação"}</button>}
         </div>
       )}
     </div>

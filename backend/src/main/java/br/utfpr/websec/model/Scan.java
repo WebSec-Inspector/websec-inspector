@@ -40,7 +40,8 @@ public class Scan {
         QUEUED,               // publicado na fila, aguardando worker
         RUNNING,               // worker executando OWASP ZAP
         COMPLETED,
-        FAILED
+        FAILED,
+        CANCELLED             // cancelamento somente antes do enfileiramento
     }
 
     public Long getId() { return id; }

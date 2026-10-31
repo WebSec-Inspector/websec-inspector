@@ -3,6 +3,7 @@ import { ScanStatus, ScanStatusTone, STATUS_PRESENTATION } from "../lib/scanStat
 
 /** Cada tom tem cor própria para que os estados sejam visualmente distinguíveis. */
 const toneStyles: Record<ScanStatusTone, string> = {
+  neutral: "bg-slate-400/10 text-slate-300 border-slate-400/30",
   pending: "bg-risk-medium/20 text-risk-medium border-risk-medium/40",
   progress: "bg-accent/20 text-accent border-accent/40",
   success: "bg-risk-low/20 text-risk-low border-risk-low/40",
