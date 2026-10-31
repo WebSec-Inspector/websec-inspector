@@ -1,10 +1,13 @@
 """Bounded ZAP API calls against the dedicated instance owned by this worker."""
 import json
 import logging
+import math
 import os
+from pathlib import Path
+import subprocess
+import sys
 import time
 from urllib.parse import urlencode
-from urllib.request import build_opener, ProxyHandler
 
 log = logging.getLogger('scan_worker')
 
@@ -12,12 +15,23 @@ log = logging.getLogger('scan_worker')
 class ZapApi:
     def __init__(self, base=None):
         self.base = (base or os.getenv('ZAP_API_URL','http://zap:8090')).rstrip('/')
-        self.opener = build_opener(ProxyHandler({}))
 
     def call(self, component, kind, operation, params=None, timeout=10):
         url = f'{self.base}/JSON/{component}/{kind}/{operation}/?{urlencode(params or {})}'
-        with self.opener.open(url, timeout=timeout) as response:
-            data = json.load(response)
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError('HTTP deadline must be positive and finite')
+        # Socket timeouts do not bound a response that continuously drips bytes.
+        # A disposable subprocess isolates the whole I/O operation, including
+        # headers/body; run() kills and reaps it on deadline. No DB FD is inherited.
+        try:
+            result = subprocess.run([sys.executable,str(Path(__file__).with_name('zap_http.py'))],
+                input=json.dumps({'url':url,'timeout':timeout}).encode('utf-8'),
+                stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=timeout,check=False)
+        except subprocess.TimeoutExpired:
+            raise TimeoutError('ZAP HTTP total request deadline exceeded') from None
+        if result.returncode:
+            raise ConnectionError('ZAP API transport failed')
+        data = json.loads(result.stdout)
         if not isinstance(data,dict) or 'code' in data:
             raise RuntimeError('ZAP API returned an invalid response')
         return data
@@ -27,8 +41,8 @@ def run_scan(target_url, heartbeat, *, api=None, timeout_seconds=None,
              clock=time.monotonic, sleep=time.sleep):
     api = api or ZapApi()
     budget = float(timeout_seconds if timeout_seconds is not None else os.getenv('ZAP_SCAN_TIMEOUT_SECONDS','900'))
-    if budget <= 0:
-        raise ValueError('ZAP timeout must be positive')
+    if not math.isfinite(budget) or budget <= 0:
+        raise ValueError('ZAP timeout must be positive and finite')
     deadline = clock()+budget
     jobs = []
 

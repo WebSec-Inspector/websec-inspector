@@ -25,7 +25,7 @@ Se um worker perde posse, abandona gravação e não tenta interromper IDs que p
 
 ## Prazo e erros auxiliares
 
-`ZAP_SCAN_TIMEOUT_SECONDS` define o orçamento total para spider, active scan e espera do processamento passivo; padrão de 900 segundos. Chamadas ao ZAP usam no máximo 10 segundos por chamada e o restante do orçamento. O encerramento tenta interromper apenas os IDs desta tentativa, com até cinco segundos por chamada de limpeza. Esses segundos de limpeza e checagens SQL podem estender o tempo observado além do orçamento do scanner.
+`ZAP_SCAN_TIMEOUT_SECONDS` define o orçamento total para spider, active scan e espera do processamento passivo; padrão de 900 segundos. Chamadas ao ZAP usam no máximo 10 segundos por chamada e o restante do orçamento. Cada operação HTTP ocorre em processo descartável, encerrado e recolhido ao expirar o prazo, inclusive se o servidor continuar enviando bytes. Respostas são limitadas a 16 MiB para conter consumo de memória. Há custo de criação de um processo por chamada. NaN, infinito e prazos não positivos são rejeitados. O encerramento tenta interromper apenas os IDs desta tentativa, com até cinco segundos por chamada de limpeza. Esses segundos de limpeza e checagens SQL podem estender o tempo observado além do orçamento do scanner.
 
 Falha de PDF ou entrega não muda um scan concluído para FAILED. Ainda não há retentativa durável independente de PDF/e-mail: isso permanece nas #29/#31. SMTP possui timeout de 15 segundos, mas a geração do PDF ainda é síncrona nesta entrega.
 
