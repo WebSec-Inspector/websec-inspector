@@ -15,6 +15,8 @@ worker=$("${compose[@]}" ps --all --quiet worker)
 # Docker can archive from a stopped container; never start a scanner for backup.
 docker cp "$worker:/data/reports/." - | gzip > "$backup_dir/reports.tar.gz"
 gzip -t "$backup_dir/reports.tar.gz"
+report_bytes=$(gzip -dc "$backup_dir/reports.tar.gz" | wc -c)
+(( report_bytes >= 1024 && report_bytes % 512 == 0 )) || { echo 'Invalid reports tar archive size.' >&2; exit 2; }
 tar -tzf "$backup_dir/reports.tar.gz" > "$backup_dir/reports-archive-list.txt"
 cp "$root/.release.env" "$backup_dir/release.env"
 touch "$backup_dir/COMPLETE"
