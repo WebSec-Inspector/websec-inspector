@@ -2,10 +2,22 @@ package br.utfpr.websec.repository;
 
 import br.utfpr.websec.model.Domain;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
 public interface DomainRepository extends JpaRepository<Domain, Long> {
+    /** Read legacy spelling without rewriting a published verification token. */
+    @Query(value = """
+            SELECT * FROM domains WHERE user_id = :userId AND
+            (CASE WHEN rtrim(lower(hostname), '.') LIKE 'www.www.%'
+                  THEN rtrim(lower(hostname), '.')
+                  ELSE regexp_replace(rtrim(lower(hostname), '.'), '^www[.]', '') END) = :hostname
+            ORDER BY id LIMIT 2
+            """, nativeQuery = true)
+    List<Domain> findCanonicalDomains(@Param("hostname") String hostname, @Param("userId") Long userId);
+
     List<Domain> findByUserId(Long userId);
     List<Domain> findByUserIdOrderByHostnameAsc(Long userId);
     Optional<Domain> findByVerificationToken(String token);

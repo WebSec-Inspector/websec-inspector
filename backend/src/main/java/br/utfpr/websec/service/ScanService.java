@@ -5,7 +5,6 @@ import br.utfpr.websec.exception.DomainNotVerifiedException;
 import br.utfpr.websec.exception.ResourceNotFoundException;
 import br.utfpr.websec.model.*;
 import br.utfpr.websec.repository.*;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +20,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class ScanService {
@@ -71,7 +71,7 @@ public class ScanService {
         if (rawHost == null) {
             throw new IllegalArgumentException("Não foi possível extrair o host da URL informada");
         }
-        final String hostname = rawHost.startsWith("www.") ? rawHost.substring(4) : rawHost;
+        final String hostname = normalizeHostname(rawHost);
         ensureHostnameExists(hostname);
 
         Domain domain = findOrCreateDomain(hostname, owner);
@@ -85,30 +85,30 @@ public class ScanService {
         return toResponse(scan, List.of());
     }
 
-    /**
-     * Busca/cria domínio e trata concorrência sobre a chave única (hostname, user).
-     */
+    static String normalizeHostname(String hostname) {
+        String result = hostname.toLowerCase(Locale.ROOT);
+        while (result.endsWith(".")) result = result.substring(0,result.length()-1);
+        // Preserve repeated www subdomains, so normalizing a stored key is idempotent.
+        if (result.startsWith("www.") && !result.startsWith("www.www.")) result = result.substring(4);
+        if (result.isBlank()) throw new IllegalArgumentException("Hostname inválido");
+        return result;
+    }
+
+    /** Serialize creation for an owner even when the domain row does not exist yet. */
     private Domain findOrCreateDomain(String hostname, User user) {
-        Domain domain = domainRepository.findFirstByHostnameAndUserId(hostname, user.getId())
-                .orElseGet(() -> {
-                    Domain d = new Domain();
-                    d.setUser(user);
-                    d.setHostname(hostname);
-                    d.setVerificationToken(generateVerificationToken());
-                    return d;
-                });
-
-        if (!domain.isVerified()) {
-            domain.setVerificationToken(generateVerificationToken());
+        User owner = userRepository.findByIdForDomainCreation(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+        List<Domain> existing = domainRepository.findCanonicalDomains(hostname,owner.getId());
+        if (existing.size() > 1) {
+            throw new IllegalStateException("Existem domínios equivalentes com provas diferentes. É necessário revisar os registros antes de criar outra varredura.");
         }
-
-        try {
-            domainRepository.save(domain);
-            return domain;
-        } catch (DataIntegrityViolationException e) {
-            return domainRepository.findFirstByHostnameAndUserId(hostname, user.getId())
-                    .orElseThrow(() -> e);
-        }
+        if (!existing.isEmpty()) return existing.get(0);
+        Domain domain = new Domain();
+        domain.setUser(owner);
+        domain.setHostname(hostname);
+        domain.setVerificationToken(generateVerificationToken());
+        domainRepository.save(domain);
+        return domain;
     }
 
     /** Confirma domínio e coloca na fila; o bypass só pode ser solicitado por administrador em dev. */
