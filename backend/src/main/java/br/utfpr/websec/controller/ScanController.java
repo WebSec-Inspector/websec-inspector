@@ -37,6 +37,11 @@ public class ScanController {
         return ResponseEntity.ok(scanService.confirmVerificationAndQueue(auth.getName(), id, bypass));
     }
 
+    @PostMapping("/{id}/cancel-verification")
+    public ResponseEntity<ScanResponse> cancelVerification(Authentication auth,@PathVariable Long id){
+        return ResponseEntity.ok(scanService.cancelVerification(auth.getName(),id));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ScanResponse> get(Authentication auth, @PathVariable Long id) {
         return ResponseEntity.ok(scanService.getScan(auth.getName(), id));

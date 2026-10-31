@@ -170,9 +170,13 @@ export async function getVerificationChallenge(id: string) {
   return parseChallenge((await api.get(`/verification-challenges/${encodeURIComponent(id)}`)).data);
 }
 
-export async function confirmVerification(scanId: number) {
-  const { data } = await api.post(`/scans/${scanId}/confirm-verification`);
+export async function confirmVerification(scanId: number, signal?: AbortSignal, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const { data } = await api.post(`/scans/${scanId}/confirm-verification`, {}, {signal,timeout:Math.max(1,Math.min(REQUEST_TIMEOUT_MS,timeoutMs))});
   return parseScan(data);
+}
+
+export async function cancelVerification(scanId:number,signal?:AbortSignal){
+  return parseScan((await api.post(`/scans/${scanId}/cancel-verification`,{}, {signal})).data);
 }
 
 export async function getScan(scanId: number) {

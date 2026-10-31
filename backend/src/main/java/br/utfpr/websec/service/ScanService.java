@@ -3,6 +3,7 @@ package br.utfpr.websec.service;
 import br.utfpr.websec.dto.*;
 import br.utfpr.websec.exception.DomainNotVerifiedException;
 import br.utfpr.websec.exception.ResourceNotFoundException;
+import br.utfpr.websec.exception.ScanStateChangedException;
 import br.utfpr.websec.model.*;
 import br.utfpr.websec.repository.*;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -127,29 +128,52 @@ public class ScanService {
         User actor = getActor(userEmail);
         Scan scan = findScanInScope(scanId, actor);
 
-        if (scan.getStatus() != Scan.Status.PENDING_VERIFICATION) {
-            throw new IllegalStateException("Scan não está aguardando verificação (status atual: " + scan.getStatus() + ")");
-        }
+        if(bypass) developmentBypassService.requireEnabledFor(actor);
+        if(scan.getStatus()!=Scan.Status.PENDING_VERIFICATION)return toResponse(scan,loadFindings(scanId));
 
         Domain domain = scan.getDomain();
         if (bypass) {
-            developmentBypassService.requireEnabledFor(actor);
             // O bypass é por execução de desenvolvimento; não marca o domínio como comprovado.
         } else {
             boolean verified = domainVerificationService.isVerified(domain.getHostname(), domain.getVerificationToken());
             if (!verified) {
+                ScanState state=readState(scanId);
+                if(state.status()!=Scan.Status.PENDING_VERIFICATION)return toStateResponse(scan,state);
                 throw new DomainNotVerifiedException(
                         "Ainda não encontramos o registro TXT ou a meta tag de verificação para \"" +
                                 domain.getHostname() + "\". A propagação de DNS pode levar alguns minutos.");
             }
-            domain.setVerifiedAt(Instant.now());
-            domainRepository.save(domain);
         }
-
-        scan.setStatus(Scan.Status.QUEUED);
-        scanRepository.save(scan);
+        // A slow proof lookup holds no scan row lock. Only one pending transition
+        // can win; never dirty the previously-read Scan entity afterwards.
+        if(scanRepository.queuePending(scanId)==0)return toStateResponse(scan,readState(scanId));
+        if(!bypass){domain.setVerifiedAt(Instant.now());domainRepository.save(domain);}
         enqueueAfterCommit(scan.getId());
-        return toResponse(scan, List.of());
+        return toStateResponse(scan,new ScanState(Scan.Status.QUEUED,null,null));
+    }
+
+    @Transactional
+    public ScanResponse cancelVerification(String userEmail,Long scanId){
+        User actor=getActor(userEmail);Scan scan=findScanInScope(scanId,actor);
+        if(scan.getStatus()==Scan.Status.CANCELLED)return toResponse(scan,List.of());
+        if(scan.getStatus()!=Scan.Status.PENDING_VERIFICATION)throw new ScanStateChangedException(scan.getStatus());
+        scanRepository.cancelPending(scanId);
+        ScanState state=readState(scanId);
+        if(state.status()!=Scan.Status.CANCELLED)throw new ScanStateChangedException(state.status());
+        return toStateResponse(scan,state);
+    }
+
+    private ScanState readState(Long id){
+        ScanState state=scanRepository.findState(id).orElseThrow(()->new ResourceNotFoundException("Scan não encontrado"));
+        if(state.deletedAt()!=null)throw new ResourceNotFoundException("Scan não encontrado");
+        return state;
+    }
+
+    private ScanResponse toStateResponse(Scan scan,ScanState state){
+        Domain domain=scan.getDomain();List<FindingResponse> findings=loadFindings(scan.getId());
+        return new ScanResponse(scan.getId(),domain.getId(),domain.getHostname(),scan.getName(),state.status().name(),
+            state.status()==Scan.Status.PENDING_VERIFICATION?domain.getVerificationToken():null,
+            scan.getCreatedAt(),state.finishedAt(),findings.size(),findings);
     }
 
     /** QUEUED no banco é o trabalho durável; Redis apenas acorda o worker. */

@@ -54,15 +54,15 @@ describe("Scans — interface real e respostas HTTP controladas", () => {
     expect(screen.getByText("Nenhuma vulnerabilidade encontrada")).toBeInTheDocument();
   });
 
-  test("SCAN-UI-03: cancelar verificação interrompe novas tentativas", async () => {
+  test("SCAN-UI-03: pausar retentativas preserva confirmacao manual", async () => {
     await openVerification();
     vi.useFakeTimers();
     http.onPost("/scans/42/confirm-verification").reply(409, { code: "VERIFICATION_PENDING", error: "DNS pendente" });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Já verifiquei, iniciar varredura" })); });
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar verificação automática" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pausar tentativas automáticas" }));
     await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
     expect(screen.queryByText("DNS pendente")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Já verifiquei, iniciar varredura" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Tentar verificação manual" })).toBeEnabled();
     expect(http.history.post.filter(r => r.url?.includes("confirm-verification"))).toHaveLength(1);
   });
 

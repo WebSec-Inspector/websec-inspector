@@ -3,6 +3,7 @@ package br.utfpr.websec.config;
 import br.utfpr.websec.exception.DomainNotVerifiedException;
 import br.utfpr.websec.exception.ResourceNotFoundException;
 import br.utfpr.websec.exception.ExistingDomainTokenException;
+import br.utfpr.websec.exception.ScanStateChangedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -17,6 +18,10 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(ScanStateChangedException.class)
+    public ResponseEntity<Map<String,String>> handleStateChanged(ScanStateChangedException ex){
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error",ex.getMessage(),"code","SCAN_STATE_CHANGED","status",ex.getStatus()));
+    }
     @ExceptionHandler(ExistingDomainTokenException.class)
     public ResponseEntity<Map<String,Object>> handleExistingDomainToken(ExistingDomainTokenException ex){
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(

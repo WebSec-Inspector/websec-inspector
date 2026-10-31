@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
+// Metadata edits must not overwrite a state changed concurrently by SQL/worker.
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "scans")
 public class Scan {
 
@@ -40,7 +42,8 @@ public class Scan {
         QUEUED,               // publicado na fila, aguardando worker
         RUNNING,               // worker executando OWASP ZAP
         COMPLETED,
-        FAILED
+        FAILED,
+        CANCELLED             // cancelamento somente antes do enfileiramento
     }
 
     public Long getId() { return id; }

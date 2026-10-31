@@ -14,6 +14,7 @@ export const SCAN_STATUSES = [
   "RUNNING",
   "COMPLETED",
   "FAILED",
+  "CANCELLED",
 ] as const;
 
 export type ScanStatus = (typeof SCAN_STATUSES)[number];
@@ -26,7 +27,7 @@ export const POLLING_STATUSES: readonly ScanStatus[] = [
 ];
 
 /** Estados terminais: o polling deve parar. */
-export const TERMINAL_STATUSES: readonly ScanStatus[] = ["COMPLETED", "FAILED"];
+export const TERMINAL_STATUSES: readonly ScanStatus[] = ["COMPLETED", "FAILED", "CANCELLED"];
 
 export function isKnownStatus(value: unknown): value is ScanStatus {
   return typeof value === "string" && (SCAN_STATUSES as readonly string[]).includes(value);
@@ -58,7 +59,7 @@ export function pollIntervalMs(status: ScanStatus): number {
   }
 }
 
-export type ScanStatusTone = "pending" | "progress" | "success" | "danger";
+export type ScanStatusTone = "pending" | "progress" | "success" | "danger" | "neutral";
 
 interface StatusPresentation {
   label: string;
@@ -68,6 +69,11 @@ interface StatusPresentation {
 
 /** Cada estado tem rótulo, tom e descrição próprios para ter representação visual distinta. */
 export const STATUS_PRESENTATION: Record<ScanStatus, StatusPresentation> = {
+  CANCELLED: {
+    label: "Cancelada",
+    tone: "neutral",
+    description: "A verificação foi cancelada antes de enfileirar a varredura. O token do domínio foi preservado.",
+  },
   PENDING_VERIFICATION: {
     label: "Aguardando verificação",
     tone: "pending",
