@@ -67,6 +67,10 @@ def validate_schema(cur):
         'findings': {'id', 'scan_id', 'owasp_category', 'description', 'cvss_score', 'severity'},
         'reports': {'id', 'scan_id', 'pdf_url'},
     }
+    required['scans'].update({'attempt_count':'integer','worker_token':'uuid',
+        'lease_until':'timestamp with time zone','heartbeat_at':'timestamp with time zone',
+        'next_attempt_at':'timestamp with time zone','failure_code':'character varying'})
+    not_null['scans'].add('attempt_count')
     for table, columns in required.items():
         cur.execute('SELECT column_name,data_type,is_nullable,character_maximum_length,is_identity,column_default FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=%s', (table,))
         actual = {row[0]: row[1:] for row in cur.fetchall()}
@@ -75,7 +79,7 @@ def validate_schema(cur):
                 raise RuntimeError(f'Incompatible schema type: {table}.{column}')
             if column in not_null[table] and actual[column][1] != 'NO':
                 raise RuntimeError(f'Incompatible schema nullable column: {table}.{column}')
-            expected_length = 120 if table == 'scans' and column == 'name' else 255
+            expected_length = 120 if table == 'scans' and column == 'name' else 64 if table == 'scans' and column == 'failure_code' else 255
             if kind == 'character varying' and actual[column][2] != expected_length:
                 raise RuntimeError(f'Incompatible schema length: {table}.{column}')
         if actual['id'][3] != 'YES' and not (actual['id'][4] or '').startswith('nextval('):

@@ -84,7 +84,7 @@ def send_report_email(scan_id: int, pdf_path: str, to_email: str | None = None):
         msg.attach(part)
 
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
             if SMTP_USER:
                 server.starttls()
                 server.login(SMTP_USER, SMTP_PASSWORD)
