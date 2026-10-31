@@ -267,3 +267,7 @@ A priorização operacional e o estado de execução devem ser acompanhados no G
 
 
 As regras implementadas para perfis Cliente, Gerente e Administrador estão detalhadas em [`controle-acesso.md`](controle-acesso.md).
+
+## Pendências auditadas em 31/10/2026
+
+Consulte [contratos funcionais](contratos-funcionais.md) e o [plano de resolução](superpowers/plans/2026-10-31-resolucao-lacunas.md). Os critérios pendentes não são considerados entregues pelo estado fechado de uma issue.

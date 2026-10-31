@@ -541,3 +541,7 @@ O repositório contém apenas nomes de configuração e exemplos sem valores rea
 ## Controle de acesso
 
 Os papéis funcionais, a definição do escopo gerencial, os endpoints protegidos, o bypass de desenvolvimento e a matriz de permissões estão descritos em [`controle-acesso.md`](controle-acesso.md).
+
+## Evolução planejada
+
+Os [contratos funcionais](contratos-funcionais.md) separam a arquitetura existente das propostas para recuperação de fila, migrações e relatórios. Esses mecanismos ainda não devem ser interpretados como implementados.
