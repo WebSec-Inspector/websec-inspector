@@ -23,6 +23,18 @@ async function openVerification() {
 }
 
 describe("Scans — interface real e respostas HTTP controladas", () => {
+  test.each([
+    ["https://WWW.WWW.QA.EXAMPLE.INVALID/path", "https://www.www.qa.example.invalid/path"],
+    ["https://WWW.QA.EXAMPLE.INVALID./path", "https://qa.example.invalid/path"],
+  ])("normalizacao preserva subdominio e chave estavel: %s", async (input, expected) => {
+    http.onPost("/scans").reply(200, {...scan,status:"PENDING_VERIFICATION",verificationToken:"stable-token"});
+    renderPage(<SubmitScanPage />, "/test");
+    fireEvent.change(screen.getByRole("textbox"), {target:{value:input}});
+    fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+    await screen.findByText("stable-token");
+    expect(JSON.parse(http.history.post[0].data).url).toBe(expected);
+  });
+
   test("SCAN-UI-01: normaliza URL e apresenta token de propriedade", async () => {
     await openVerification();
     expect(screen.getByText("qa.example.invalid", { selector: "strong" })).toBeInTheDocument();

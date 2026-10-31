@@ -110,10 +110,10 @@ export default function SubmitScanPage() {
     }
     try {
       const parsed = new URL(url);
-      if (parsed.hostname.startsWith("www.")) {
-        parsed.hostname = parsed.hostname.slice(4);
-        url = parsed.toString();
-      }
+      let hostname = parsed.hostname.toLowerCase().replace(/\.+$/, "");
+      if (hostname.startsWith("www.") && !hostname.startsWith("www.www.")) hostname = hostname.slice(4);
+      parsed.hostname = hostname;
+      url = parsed.toString();
     } catch {
       // keep as-is if URL parsing fails; backend will validate
     }
