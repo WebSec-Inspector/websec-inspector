@@ -39,7 +39,7 @@ class ScanJobTests(unittest.TestCase):
         self.assertIsNone(claim_next(self.conn))
 
     def test_expired_attempt_is_fenced_and_results_are_committed_once(self):
-        from worker.scan_jobs import claim_next, complete, heartbeat, LeaseLost
+        from worker.scan_jobs import claim_next, complete, heartbeat, fail, LeaseLost
         from worker.zap_parser import parse_zap_alerts
         old = claim_next(self.conn)
         with self.conn.cursor() as cur:
@@ -49,6 +49,7 @@ class ScanJobTests(unittest.TestCase):
         self.assertNotEqual(old.token, new.token)
         with self.assertRaises(LeaseLost): heartbeat(self.conn, old)
         with self.assertRaises(LeaseLost): complete(self.conn, old, [])
+        with self.assertRaises(LeaseLost): fail(self.conn, old, 'OLD_ATTEMPT')
         complete(self.conn, new, parse_zap_alerts([{'alert': 'Once', 'risk': 'Low'}]))
         with self.assertRaises(LeaseLost): complete(self.conn, new, [])
         with self.conn.cursor() as cur:
@@ -77,6 +78,23 @@ class ScanJobTests(unittest.TestCase):
             cur.execute("UPDATE scans SET status='QUEUED',deleted_at=now()")
         self.conn.commit()
         self.assertIsNone(claim_next(self.conn))
+
+    def test_retry_waits_for_backoff_and_terminal_error_finishes(self):
+        from worker.scan_jobs import claim_next, fail
+        first = claim_next(self.conn)
+        fail(self.conn,first,'SCAN_TIMEOUT',retryable=True)
+        self.assertIsNone(claim_next(self.conn))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT status,next_attempt_at>now(),finished_at FROM scans")
+            self.assertEqual(('QUEUED',True,None),cur.fetchone())
+            cur.execute("UPDATE scans SET next_attempt_at=now()-interval '1 second'")
+        self.conn.commit()
+        second = claim_next(self.conn)
+        self.assertEqual(2,second.attempt)
+        fail(self.conn,second,'INVALID_DATA',retryable=False)
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT status,failure_code,finished_at IS NOT NULL FROM scans')
+            self.assertEqual(('FAILED','INVALID_DATA',True),cur.fetchone())
 
     def test_invalid_findings_roll_back_completion_and_preserve_data(self):
         from worker.scan_jobs import claim_next, complete
