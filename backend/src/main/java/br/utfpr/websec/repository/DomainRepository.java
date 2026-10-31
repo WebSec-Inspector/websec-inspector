@@ -9,9 +9,13 @@ import java.util.Optional;
 
 public interface DomainRepository extends JpaRepository<Domain, Long> {
     /** Read legacy spelling without rewriting a published verification token. */
-    @Query(value = "SELECT * FROM domains WHERE user_id = :userId " +
-            "AND rtrim(regexp_replace(lower(hostname), '^www[.]', ''), '.') = :hostname " +
-            "ORDER BY id LIMIT 2", nativeQuery = true)
+    @Query(value = """
+            SELECT * FROM domains WHERE user_id = :userId AND
+            (CASE WHEN rtrim(lower(hostname), '.') LIKE 'www.www.%'
+                  THEN rtrim(lower(hostname), '.')
+                  ELSE regexp_replace(rtrim(lower(hostname), '.'), '^www[.]', '') END) = :hostname
+            ORDER BY id LIMIT 2
+            """, nativeQuery = true)
     List<Domain> findCanonicalDomains(@Param("hostname") String hostname, @Param("userId") Long userId);
 
     List<Domain> findByUserId(Long userId);

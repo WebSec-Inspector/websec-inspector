@@ -71,11 +71,7 @@ public class ScanService {
         if (rawHost == null) {
             throw new IllegalArgumentException("Não foi possível extrair o host da URL informada");
         }
-        String normalizedHost = rawHost.toLowerCase(Locale.ROOT);
-        if (normalizedHost.startsWith("www.")) normalizedHost = normalizedHost.substring(4);
-        while (normalizedHost.endsWith(".")) normalizedHost = normalizedHost.substring(0,normalizedHost.length()-1);
-        if (normalizedHost.isBlank()) throw new IllegalArgumentException("Hostname inválido");
-        final String hostname = normalizedHost;
+        final String hostname = normalizeHostname(rawHost);
         ensureHostnameExists(hostname);
 
         Domain domain = findOrCreateDomain(hostname, owner);
@@ -87,6 +83,15 @@ public class ScanService {
         scanRepository.save(scan);
 
         return toResponse(scan, List.of());
+    }
+
+    static String normalizeHostname(String hostname) {
+        String result = hostname.toLowerCase(Locale.ROOT);
+        while (result.endsWith(".")) result = result.substring(0,result.length()-1);
+        // Preserve repeated www subdomains, so normalizing a stored key is idempotent.
+        if (result.startsWith("www.") && !result.startsWith("www.www.")) result = result.substring(4);
+        if (result.isBlank()) throw new IllegalArgumentException("Hostname inválido");
+        return result;
     }
 
     /** Serialize creation for an owner even when the domain row does not exist yet. */

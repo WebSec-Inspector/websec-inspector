@@ -149,6 +149,18 @@ class StableDomainTokenPostgresTest {
     }
 
     @Test
+    void repeatedWwwPrefixesStayDistinctAndLookupIsIdempotent() {
+        User owner = owner();
+        Domain domain = published(owner,"WWW.WWW.EXAMPLE.INVALID.",false);
+        String canonical = ScanService.normalizeHostname(domain.getHostname());
+        assertEquals("www.www.example.invalid",canonical);
+        assertEquals(canonical,ScanService.normalizeHostname(canonical));
+        assertEquals(domain.getId(),domains.findCanonicalDomains(canonical,owner.getId()).get(0).getId());
+        assertEquals(domain.getId(),domains.findCanonicalDomains(canonical,owner.getId()).get(0).getId());
+        assertTrue(domains.findCanonicalDomains(ScanService.normalizeHostname("www.example.invalid."),owner.getId()).isEmpty());
+    }
+
+    @Test
     void loginAgainAndReloadPendingScanKeepTheSameChallengeOverHttp() throws Exception {
         User owner = owner();
         String payload = json.writeValueAsString(java.util.Map.of("url","http://localhost"));

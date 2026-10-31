@@ -10,7 +10,7 @@ O custo é serializar criações de domínios diferentes da mesma conta. Contas 
 
 ## Legado e normalização
 
-Novos hostnames são normalizados para minúsculas, sem prefixo `www.` e sem ponto DNS final. A busca também reconhece essas variações em registros antigos, sem reescrever seus tokens ou mover seu histórico. A consulta sempre filtra o proprietário.
+Novos hostnames são normalizados para minúsculas, sem o prefixo simples `www.` e sem ponto DNS final. Prefixos repetidos (`www.www...`) são preservados como subdomínio distinto, tornando a regra idempotente na entrada e na busca. A busca também reconhece essas variações em registros antigos, sem reescrever seus tokens ou mover seu histórico. A consulta sempre filtra o proprietário.
 
 Se já existirem dois registros equivalentes da mesma conta, a operação responde conflito (HTTP 409), sem escolher uma prova silenciosamente, fundir históricos ou gerar outro desafio. A correção desses dados exige identificar o registro e a prova corretos antes de qualquer consolidação. Esta entrega não executa migração de tokens nem limpeza de dados em massa.
 
