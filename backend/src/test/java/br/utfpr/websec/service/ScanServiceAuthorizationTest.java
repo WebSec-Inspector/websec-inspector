@@ -215,6 +215,16 @@ class ScanServiceAuthorizationTest {
         assertNull(clientScan.getDeletedAt());
     }
 
+    @Test
+    void falhaDeNotificacaoNaoPerdeTrabalhoConfirmadoNoBanco() {
+        clientScan.setStatus(Scan.Status.PENDING_VERIFICATION);
+        when(verification.isVerified(anyString(), anyString())).thenReturn(true);
+        when(redis.opsForList()).thenThrow(new org.springframework.data.redis.RedisConnectionFailureException("offline"));
+        ScanResponse response = service.confirmVerificationAndQueue(client.getEmail(), 42L, false);
+        assertEquals("QUEUED", response.status());
+        verify(scans).save(clientScan);
+    }
+
     private static User user(Long id, User.Role role) {
         User user = new User();
         ReflectionTestUtils.setField(user, "id", id);

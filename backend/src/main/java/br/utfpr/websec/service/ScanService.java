@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.net.URI;
@@ -22,6 +24,7 @@ import java.util.List;
 
 @Service
 public class ScanService {
+    private static final Logger log = LoggerFactory.getLogger(ScanService.class);
 
     private static final String QUEUE_KEY = "scan-queue";
 
@@ -139,9 +142,15 @@ public class ScanService {
         return toResponse(scan, List.of());
     }
 
-    /** Publica a mensagem somente depois do commit para que o worker enxergue o estado QUEUED. */
+    /** QUEUED no banco é o trabalho durável; Redis apenas acorda o worker. */
     private void enqueueAfterCommit(Long scanId) {
-        Runnable enqueue = () -> redisTemplate.opsForList().leftPush(QUEUE_KEY, scanId.toString());
+        Runnable enqueue = () -> {
+            try {
+                redisTemplate.opsForList().leftPush(QUEUE_KEY, scanId.toString());
+            } catch (org.springframework.dao.DataAccessException ex) {
+                log.warn("Scan {} permanece QUEUED; notificação Redis indisponível", scanId);
+            }
+        };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
