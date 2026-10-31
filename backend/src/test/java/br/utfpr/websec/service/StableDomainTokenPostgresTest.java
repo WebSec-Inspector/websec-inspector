@@ -10,6 +10,11 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -21,8 +26,11 @@ import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @EnabledIfEnvironmentVariable(named="TEST_POSTGRES_JDBC", matches=".+")
 class StableDomainTokenPostgresTest {
     @DynamicPropertySource
@@ -37,12 +45,15 @@ class StableDomainTokenPostgresTest {
     @Autowired UserRepository users;
     @Autowired DomainRepository domains;
     @Autowired JdbcTemplate jdbc;
+    @Autowired MockMvc http;
+    @Autowired ObjectMapper json;
+    @Autowired PasswordEncoder passwords;
     private final List<Long> owners = new ArrayList<>();
 
     private User owner() {
         User user = new User();
         user.setEmail(UUID.randomUUID()+"@example.invalid");
-        user.setPasswordHash("test-hash");
+        user.setPasswordHash(passwords.encode("test-password"));
         user.setName("Token test");
         user = users.saveAndFlush(user);
         owners.add(user.getId());
@@ -128,5 +139,30 @@ class StableDomainTokenPostgresTest {
         assertThrows(IllegalStateException.class, () -> service.submitUrl(owner.getEmail(),new ScanRequest("http://localhost",null,null)));
         assertEquals(first.getVerificationToken(),domains.findById(first.getId()).orElseThrow().getVerificationToken());
         assertEquals(second.getVerificationToken(),domains.findById(second.getId()).orElseThrow().getVerificationToken());
+    }
+
+    private String login(User user) throws Exception {
+        String body = json.writeValueAsString(java.util.Map.of("email",user.getEmail(),"password","test-password"));
+        String response = http.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return json.readTree(response).get("token").asText();
+    }
+
+    @Test
+    void loginAgainAndReloadPendingScanKeepTheSameChallengeOverHttp() throws Exception {
+        User owner = owner();
+        String payload = json.writeValueAsString(java.util.Map.of("url","http://localhost"));
+        String first = http.perform(post("/api/scans").header("Authorization","Bearer "+login(owner))
+                        .contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String session = login(owner);
+        String second = http.perform(post("/api/scans").header("Authorization","Bearer "+session)
+                        .contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String reload = http.perform(get("/api/scans/"+json.readTree(first).get("id").asLong())
+                        .header("Authorization","Bearer "+session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertEquals(json.readTree(first).get("verificationToken"),json.readTree(second).get("verificationToken"));
+        assertEquals(json.readTree(first).get("verificationToken"),json.readTree(reload).get("verificationToken"));
     }
 }
