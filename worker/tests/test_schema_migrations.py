@@ -114,6 +114,27 @@ class SchemaMigrationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "checksum"):
             self.migrate()
 
+    def test_legacy_preflight_requires_approval_and_never_applies_sql(self):
+        from worker.schema_migrations import preflight
+        self.legacy()
+        with self.assertRaisesRegex(RuntimeError,'adopt'):
+            preflight(self.conn)
+        preflight(self.conn,adopt_legacy=True)
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('websec_schema_history'),to_regclass('verification_challenges')")
+            self.assertEqual((None,None),cur.fetchone())
+            cur.execute('SELECT role FROM users')
+            self.assertEqual('USER',cur.fetchone()[0])
+
+    def test_preflight_blocks_modified_history_without_mutating_it(self):
+        from worker.schema_migrations import preflight
+        self.migrate()
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE websec_schema_history SET checksum='changed' WHERE version=1")
+        self.conn.commit()
+        with self.assertRaisesRegex(RuntimeError,'checksum'):
+            preflight(self.conn)
+
     def test_complete_legacy_with_wrong_type_or_missing_fk_is_rejected(self):
         self.legacy()
         with self.conn.cursor() as cur:

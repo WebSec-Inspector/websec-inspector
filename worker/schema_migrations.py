@@ -114,6 +114,41 @@ def validate_schema(cur):
         raise RuntimeError('Incompatible schema constraint: missing primary/unique/foreign key')
 
 
+def check_legacy(cur,tables,adopt_legacy):
+    if not adopt_legacy:
+        raise RuntimeError('Existing schema requires explicit adopt_legacy approval after backup')
+    if tables != set(LEGACY_COLUMNS):
+        raise RuntimeError('Unknown or partial legacy schema tables; inventory required')
+    for table, required in LEGACY_COLUMNS.items():
+        cur.execute('SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=%s',(table,))
+        if not required.issubset({row[0] for row in cur.fetchall()}):
+            raise RuntimeError(f'Unknown legacy schema columns in {table}')
+    cur.execute("SELECT count(*) FROM users WHERE role IS NULL OR role NOT IN ('USER','ADMIN','CLIENTE','GERENTE','ADMINISTRADOR')")
+    if cur.fetchone()[0]:
+        raise RuntimeError('Unknown existing user role; inventory required')
+
+
+def preflight(conn,*,adopt_legacy=False,directory=None):
+    """Read-only approval/history gate, before stopping application writers.
+
+    Pending SQL can still fail: this is not a replacement for a staging upgrade.
+    """
+    manifest=migration_manifest(directory)
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute('SET TRANSACTION READ ONLY')
+            cur.execute("SET LOCAL statement_timeout='10s'")
+            cur.execute('SELECT tablename FROM pg_tables WHERE schemaname=current_schema()')
+            tables={row[0] for row in cur.fetchall()}
+            if 'websec_schema_history' not in tables:
+                if tables:check_legacy(cur,tables,adopt_legacy)
+                return
+            cur.execute('SELECT version,checksum FROM websec_schema_history ORDER BY version')
+            history=cur.fetchall()
+            validate_history(manifest,history)
+            if len(history)==len(manifest):validate_schema(cur)
+
+
 def migrate(conn, *, adopt_legacy=False, check_only=False, directory=None):
     manifest = migration_manifest(directory)
     applied = []
@@ -130,14 +165,7 @@ def migrate(conn, *, adopt_legacy=False, check_only=False, directory=None):
                 if check_only:
                     raise RuntimeError('Schema migration required before application startup')
                 if tables:
-                    if not adopt_legacy:
-                        raise RuntimeError('Existing schema requires explicit adopt_legacy approval after backup')
-                    if tables != set(LEGACY_COLUMNS):
-                        raise RuntimeError('Unknown or partial legacy schema tables; inventory required')
-                    for table, required in LEGACY_COLUMNS.items():
-                        cur.execute('SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=%s', (table,))
-                        if not required.issubset({row[0] for row in cur.fetchall()}):
-                            raise RuntimeError(f'Unknown legacy schema columns in {table}')
+                    check_legacy(cur,tables,adopt_legacy)
                 cur.execute('CREATE TABLE websec_schema_history (version integer PRIMARY KEY, checksum varchar(64) NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())')
             cur.execute('SELECT version,checksum FROM websec_schema_history ORDER BY version')
             history = cur.fetchall()
@@ -156,17 +184,24 @@ def main():
     import argparse
     import psycopg2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--check', action='store_true')
+    group=parser.add_mutually_exclusive_group()
+    group.add_argument('--check', action='store_true')
+    group.add_argument('--preflight', action='store_true')
     args = parser.parse_args()
     conn = psycopg2.connect(host=os.getenv('DB_HOST', 'localhost'), port=os.getenv('DB_PORT', '5432'),
                             dbname=os.getenv('DB_NAME', 'websec'), user=os.getenv('DB_USER', 'websec'),
                             password=os.getenv('DB_PASSWORD', 'websec'), connect_timeout=10)
     try:
+        if args.preflight:
+            preflight(conn,adopt_legacy=os.getenv('SCHEMA_ADOPT_LEGACY') == 'true')
+            print('Schema preflight passed; no SQL migrations applied')
+            return
         applied = migrate(conn, adopt_legacy=os.getenv('SCHEMA_ADOPT_LEGACY') == 'true', check_only=args.check)
         print('Schema compatible; applied versions:', applied)
     except Exception as exc:
         # PostgreSQL error detail can contain account data: never print it here.
         print('Schema migration/check failed:', type(exc).__name__)
+        if isinstance(exc,RuntimeError):print(str(exc))
         raise SystemExit(1) from None
     finally:
         conn.close()

@@ -52,10 +52,9 @@ if 'stop' in args:
     running_file.write_text('\\n'.join(sorted(current - stopped)) + ('\\n' if current - stopped else ''))
 if 'pull' in args and os.environ.get('FAIL_PULL') == '1': sys.exit(12)
 if 'up' in args and tag.endswith('b' * 40) and os.environ.get('FAIL_UP') == '1': sys.exit(13)
-if 'run' in args and 'migrate' in args and os.environ.get('FAIL_MIGRATION') == '1': sys.exit(14)
-if 'up' in args and args[-1] != 'redis' and tag.endswith('b' * 40):
-    running_file.write_text('backend\\nworker\\n')
-    if os.environ.get('FAIL_APP') == '1': sys.exit(15)
+if '--preflight' in args and os.environ.get('FAIL_PREFLIGHT') == '1': sys.exit(16)
+if 'run' in args and 'migrate' in args and '--preflight' not in args and os.environ.get('FAIL_MIGRATION') == '1': sys.exit(14)
+if 'up' in args and args[-1] != 'redis' and tag.endswith('b' * 40) and os.environ.get('FAIL_APP') == '1': sys.exit(15)
 if pathlib.Path(sys.argv[0]).name == 'curl' and os.environ.get('FAIL_HTTPS') == '1': sys.exit(22)
 if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'):
     print(os.environ.get('VERSION_SHA', 'b' * 40))
@@ -102,14 +101,15 @@ if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'
         self.assertEqual((self.root / ".release.env").read_text(), before)
         self.assertFalse(any("up" in event["args"] for event in self.calls()))
 
-    def test_failed_start_restores_previous_images_and_configuration(self):
+    def test_failed_infrastructure_start_restores_previous_configuration(self):
         self.previous()
         before = (self.root / ".release.env").read_text()
         result = self.run_deploy(FAIL_UP="1")
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual((self.root / ".release.env").read_text(), before)
         starts = [event["tag"] for event in self.calls() if "up" in event["args"]]
-        self.assertEqual(starts, [f"sha-{NEW_SHA}", f"sha-{OLD_SHA}"])
+        self.assertEqual(starts, [f"sha-{NEW_SHA}",f"sha-{OLD_SHA}"])
+        self.assertFalse(any('run' in c['args'] and 'migrate' in c['args'] and '--preflight' not in c['args'] for c in self.calls()))
 
     def test_failed_https_verification_restores_previous_version(self):
         self.previous()
@@ -167,12 +167,21 @@ if pathlib.Path(sys.argv[0]).name == 'curl' and args[-1].endswith('/version.txt'
         self.assertEqual(0, result.returncode, result.stderr)
         calls = self.calls()
         stop = next(i for i,c in enumerate(calls) if 'stop' in c['args'])
-        migration = next(i for i,c in enumerate(calls) if 'run' in c['args'] and 'migrate' in c['args'])
+        migration = next(i for i,c in enumerate(calls) if 'run' in c['args'] and 'migrate' in c['args'] and '--preflight' not in c['args'])
         start = next(i for i,c in enumerate(calls) if 'up' in c['args'] and c['args'][-1] != 'redis')
         self.assertLess(stop, migration)
         self.assertLess(migration, start)
 
-    @unittest.skipUnless(os.name == "posix", "fcntl-based deployment lock test requires POSIX")
+    def test_preflight_failure_keeps_writers_and_previous_revision_untouched(self):
+        self.previous()
+        before=(self.root/'.release.env').read_text()
+        result=self.run_deploy(FAIL_PREFLIGHT='1')
+        self.assertNotEqual(0,result.returncode)
+        self.assertEqual(before,(self.root/'.release.env').read_text())
+        self.assertFalse(any('stop' in event['args'] for event in self.calls()))
+        self.assertFalse(any('run' in c['args'] and 'migrate' in c['args'] and '--preflight' not in c['args'] for c in self.calls()))
+        self.assertFalse(any('up' in c['args'] for c in self.calls()))
+
     def test_concurrent_deploy_is_rejected_before_docker(self):
         with open(self.root / ".deploy.lock", "w") as lock:
             import fcntl

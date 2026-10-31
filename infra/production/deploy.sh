@@ -51,6 +51,12 @@ compose "$candidate" "$release" pull
 if $had_previous; then
     WEBSEC_ROOT="$root" bash "$release/backup.sh"
 fi
+# Approval/history errors must fail while the old writers are still running.
+# This command performs no migrations and does not create schema history.
+if ! $had_previous; then
+    compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
+fi
+compose "$candidate" "$release" run --rm --no-deps migrate python schema_migrations.py --preflight
 
 migration_may_have_committed=false
 rollback() {
@@ -58,9 +64,9 @@ rollback() {
     trap - ERR
     if $migration_may_have_committed; then
         # Never start an older application against an upgraded schema.
-        if ! stop_running_apps; then
-            echo 'Could not confirm application services are stopped; operator intervention is required.' >&2
-        fi
+        # Stop both services even when Docker does not report them as running:
+        # a failed/partial `up` can leave containers that must stay down.
+        compose "$candidate" "$release" stop backend worker || true
         echo 'Schema migration may have committed; automatic image rollback blocked. Keep maintenance and recover with a schema-compatible release or restore the verified backup.' >&2
         exit "$failure"
     fi
@@ -81,8 +87,8 @@ rollback() {
     exit "$failure"
 }
 trap 'rollback $?' ERR
-compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
 stop_running_apps
+compose "$candidate" "$release" up -d --wait --wait-timeout 120 postgres redis
 migration_may_have_committed=true
 compose "$candidate" "$release" run --rm --no-deps migrate
 compose "$candidate" "$release" up -d --wait --wait-timeout 600
