@@ -2,6 +2,8 @@ package br.utfpr.websec.service;
 
 import br.utfpr.websec.dto.ScanRequest;
 import br.utfpr.websec.dto.ScanResponse;
+import br.utfpr.websec.dto.CreateDomainRequest;
+import br.utfpr.websec.dto.DomainCreationResult;
 import br.utfpr.websec.model.Domain;
 import br.utfpr.websec.model.User;
 import br.utfpr.websec.repository.DomainRepository;
@@ -42,6 +44,7 @@ class StableDomainTokenPostgresTest {
     }
 
     @Autowired ScanService service;
+    @Autowired DomainService domainService;
     @Autowired UserRepository users;
     @Autowired DomainRepository domains;
     @Autowired JdbcTemplate jdbc;
@@ -139,6 +142,65 @@ class StableDomainTokenPostgresTest {
         assertThrows(IllegalStateException.class, () -> service.submitUrl(owner.getEmail(),new ScanRequest("http://localhost",null,null)));
         assertEquals(first.getVerificationToken(),domains.findById(first.getId()).orElseThrow().getVerificationToken());
         assertEquals(second.getVerificationToken(),domains.findById(second.getId()).orElseThrow().getVerificationToken());
+    }
+
+    @Test
+    void domainCrudApiPreservesTokenAndScanHistoryAcrossArchive() throws Exception {
+        User owner = owner();
+        String token = login(owner);
+        String payload = json.writeValueAsString(java.util.Map.of("hostname", "http://localhost/path"));
+        String firstBody = http.perform(post("/api/domains").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        var first = json.readTree(firstBody);
+        long domainId = first.get("id").asLong();
+        assertEquals("localhost", first.get("hostname").asText());
+        assertTrue(first.get("verificationToken").asText().startsWith("websec-verify-"));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM scans WHERE domain_id=?", Integer.class, domainId));
+
+        String pending = http.perform(post("/api/domains/" + domainId + "/verify")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict()).andReturn().getResponse().getContentAsString();
+        assertEquals("VERIFICATION_PENDING", json.readTree(pending).get("code").asText());
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM scans WHERE domain_id=?", Integer.class, domainId));
+
+        jdbc.update("INSERT INTO scans(domain_id,status,created_at) VALUES (?, 'COMPLETED', now())", domainId);
+        http.perform(delete("/api/domains/" + domainId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        assertFalse(domains.findById(domainId).orElseThrow().isActive());
+        assertEquals(1, service.history(owner.getEmail(), domainId).size());
+
+        String reactivatedBody = http.perform(post("/api/domains").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var reactivated = json.readTree(reactivatedBody);
+        assertEquals(domainId, reactivated.get("id").asLong());
+        assertEquals(first.get("verificationToken").asText(), reactivated.get("verificationToken").asText());
+        assertTrue(reactivated.get("verifiedAt").isNull());
+        assertEquals(1, service.history(owner.getEmail(), domainId).size());
+    }
+
+    @Test
+    void concurrentDomainRegistrationReturnsOneIdAndStableToken() throws Exception {
+        User owner = owner();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        Callable<DomainCreationResult> create = () -> {
+            barrier.await(10, TimeUnit.SECONDS);
+            return domainService.createDomain(owner.getEmail(), new CreateDomainRequest("localhost", null));
+        };
+        try {
+            Future<DomainCreationResult> first = pool.submit(create);
+            Future<DomainCreationResult> second = pool.submit(create);
+            DomainCreationResult a = first.get(30, TimeUnit.SECONDS);
+            DomainCreationResult b = second.get(30, TimeUnit.SECONDS);
+            assertEquals(a.response().id(), b.response().id());
+            assertEquals(a.response().verificationToken(), b.response().verificationToken());
+            assertEquals(1, domains.findByUserId(owner.getId()).size());
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(15, TimeUnit.SECONDS));
+        }
     }
 
     private String login(User user) throws Exception {

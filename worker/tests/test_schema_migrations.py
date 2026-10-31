@@ -10,7 +10,7 @@ class MigrationManifestTests(unittest.TestCase):
     def test_manifest_is_ordered_and_rejects_edited_history(self):
         from worker.schema_migrations import migration_manifest, validate_history
         manifest = migration_manifest()
-        self.assertEqual([1, 2, 3, 4, 5, 6], [item.version for item in manifest])
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7], [item.version for item in manifest])
         validate_history(manifest, [(m.version, m.checksum) for m in manifest])
         with self.assertRaisesRegex(RuntimeError, "checksum"):
             validate_history(manifest, [(1, "edited")])
@@ -49,6 +49,7 @@ class SchemaMigrationTests(unittest.TestCase):
         with self.conn.cursor() as cur:
             cur.execute("DROP TABLE verification_challenges")
             cur.execute("DROP TABLE websec_schema_history")
+            cur.execute("ALTER TABLE domains DROP COLUMN IF EXISTS is_active")
             cur.execute("ALTER TABLE users DROP CONSTRAINT users_role_check")
             cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('legacy@example.invalid','same-hash','Legacy',%s,now())", (role,))
             cur.execute("ALTER TABLE findings DROP CONSTRAINT findings_severity_check")
@@ -59,22 +60,27 @@ class SchemaMigrationTests(unittest.TestCase):
         self.conn.commit()
 
     def test_empty_database_bootstraps_and_repeat_is_noop(self):
-        self.assertEqual([1, 2, 3, 4, 5, 6], self.migrate())
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7], self.migrate())
         self.assertEqual([], self.migrate())
         with self.conn.cursor() as cur:
             cur.execute("SELECT count(*) FROM websec_schema_history")
-            self.assertEqual(6, cur.fetchone()[0])
+            self.assertEqual(7, cur.fetchone()[0])
+            cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('new@example.invalid','hash','New','CLIENTE',now())")
+            cur.execute("INSERT INTO domains(user_id,hostname,verification_token) VALUES (1,'new.example.invalid','new-token') RETURNING is_active")
+            self.assertTrue(cur.fetchone()[0])
 
     def test_legacy_requires_explicit_adoption_and_preserves_data(self):
         self.legacy()
         with self.assertRaisesRegex(RuntimeError, "adopt"):
             self.migrate()
-        self.assertEqual([1, 2, 3, 4, 5, 6], self.migrate(adopt_legacy=True))
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7], self.migrate(adopt_legacy=True))
         with self.conn.cursor() as cur:
             cur.execute("SELECT password_hash,role FROM users")
             self.assertEqual([('same-hash', 'CLIENTE')], cur.fetchall())
             cur.execute("SELECT verification_token FROM domains")
             self.assertEqual('published-token', cur.fetchone()[0])
+            cur.execute("SELECT is_active FROM domains")
+            self.assertTrue(cur.fetchone()[0])
             cur.execute("SELECT description FROM findings")
             self.assertEqual('keep', cur.fetchone()[0])
             cur.execute("INSERT INTO findings(scan_id,owasp_category,description,cvss_score,severity,evidence) VALUES (1,'new',%s,0,'INFORMATIONAL',%s)", ('d'*6001, 'e'*6001))

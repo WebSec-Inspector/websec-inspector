@@ -22,4 +22,6 @@ public interface ScanRepository extends JpaRepository<Scan, Long> {
     Optional<ScanState> findState(@Param("id") Long id);
 
     List<Scan> findByDomainIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long domainId);
+
+    boolean existsByDomainIdAndDeletedAtIsNullAndStatusIn(Long domainId, List<Scan.Status> statuses);
 }
