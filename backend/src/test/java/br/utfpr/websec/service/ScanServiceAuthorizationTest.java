@@ -79,6 +79,10 @@ class ScanServiceAuthorizationTest {
         when(users.findById(2L)).thenReturn(Optional.of(otherClient));
         when(users.findById(3L)).thenReturn(Optional.of(manager));
         when(users.findById(4L)).thenReturn(Optional.of(admin));
+        when(users.findByIdForDomainCreation(1L)).thenReturn(Optional.of(client));
+        when(users.findByIdForDomainCreation(2L)).thenReturn(Optional.of(otherClient));
+        when(users.findByIdForDomainCreation(3L)).thenReturn(Optional.of(manager));
+        when(users.findByIdForDomainCreation(4L)).thenReturn(Optional.of(admin));
         when(scans.findById(42L)).thenReturn(Optional.of(clientScan));
         when(findings.findByScanId(42L)).thenReturn(List.of());
     }
@@ -87,24 +91,24 @@ class ScanServiceAuthorizationTest {
 
     @Test
     void clientePodeCriarScanParaSiMesmo() {
-        when(domains.findFirstByHostnameAndUserId("localhost", client.getId())).thenReturn(Optional.empty());
+        when(domains.findCanonicalDomains("localhost", client.getId())).thenReturn(List.of());
         ScanResponse response = service.submitUrl(client.getEmail(),
                 new ScanRequest("http://localhost", null, null));
 
         assertEquals("localhost", response.hostname());
         assertEquals("PENDING_VERIFICATION", response.status());
-        verify(domains).findFirstByHostnameAndUserId("localhost", client.getId());
+        verify(domains).findCanonicalDomains("localhost", client.getId());
     }
 
     @Test
     void gerentePodeCriarScanParaClienteAtribuido() {
-        when(domains.findFirstByHostnameAndUserId("localhost", client.getId())).thenReturn(Optional.empty());
+        when(domains.findCanonicalDomains("localhost", client.getId())).thenReturn(List.of());
         ScanResponse response = service.submitUrl(manager.getEmail(),
                 new ScanRequest("http://localhost", "Scan do cliente", client.getId()));
 
         assertEquals("localhost", response.hostname());
         assertEquals("Scan do cliente", response.name());
-        verify(domains).findFirstByHostnameAndUserId("localhost", client.getId());
+        verify(domains).findCanonicalDomains("localhost", client.getId());
     }
 
     @Test
@@ -112,7 +116,7 @@ class ScanServiceAuthorizationTest {
         assertThrows(ResourceNotFoundException.class,
                 () -> service.submitUrl(client.getEmail(),
                         new ScanRequest("http://localhost", null, otherClient.getId())));
-        verify(domains, never()).findFirstByHostnameAndUserId(any(String.class), any(Long.class));
+        verify(domains, never()).findCanonicalDomains(any(String.class), any(Long.class));
     }
 
     @Test
