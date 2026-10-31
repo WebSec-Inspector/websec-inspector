@@ -134,4 +134,39 @@ class VerificationChallengePostgresTest {
         request("/api/scans",session,Map.of("url","http://127.0.0.1","verificationChallengeId",challenge.get("id").asText()),409);
         assertEquals(1,count("domains",u));
     }
+
+    @Test void simultaneousIssueRequestsReturnOnePendingChallenge() throws Exception {
+        User u=owner(); String session=login(u);
+        ExecutorService pool=Executors.newFixedThreadPool(2);CyclicBarrier start=new CyclicBarrier(2);
+        Callable<JsonNode> issue=()->{start.await(10,TimeUnit.SECONDS);return request("/api/verification-challenges",session,Map.of(),200);};
+        try {
+            Future<JsonNode> a=pool.submit(issue),b=pool.submit(issue);
+            JsonNode first=a.get(30,TimeUnit.SECONDS),second=b.get(30,TimeUnit.SECONDS);
+            assertEquals(first.get("id"),second.get("id"));assertEquals(first.get("token"),second.get("token"));
+            assertEquals(0,count("domains",u));assertEquals(0,count("scans",u));
+        }finally{pool.shutdownNow();assertTrue(pool.awaitTermination(15,TimeUnit.SECONDS));}
+    }
+
+    @Test void simultaneousBindingsToDifferentSitesCannotReuseChallenge() throws Exception {
+        User u=owner();String session=login(u);
+        String id=request("/api/verification-challenges",session,Map.of(),200).get("id").asText();
+        ExecutorService pool=Executors.newFixedThreadPool(2);CyclicBarrier start=new CyclicBarrier(2);
+        try {
+            List<Future<Integer>> results=new ArrayList<>();
+            for(String url:List.of("http://localhost","http://127.0.0.1")) results.add(pool.submit(()->{
+                start.await(10,TimeUnit.SECONDS);
+                return http.perform(post("/api/scans").header("Authorization","Bearer "+session)
+                    .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("url",url,"verificationChallengeId",id))))
+                    .andReturn().getResponse().getStatus();
+            }));
+            List<Integer> codes=new ArrayList<>();for(Future<Integer> result:results)codes.add(result.get(30,TimeUnit.SECONDS));
+            assertEquals(List.of(200,409),codes.stream().sorted().toList());
+            assertEquals(1,count("domains",u));assertEquals(1,count("scans",u));
+        }finally{pool.shutdownNow();assertTrue(pool.awaitTermination(15,TimeUnit.SECONDS));}
+    }
+
+    @Test void challengeEndpointsRequireAuthentication() throws Exception {
+        http.perform(post("/api/verification-challenges")).andExpect(status().isUnauthorized());
+        http.perform(get("/api/verification-challenges/current")).andExpect(status().isUnauthorized());
+    }
 }

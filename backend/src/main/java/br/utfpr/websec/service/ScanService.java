@@ -16,11 +16,10 @@ import org.slf4j.LoggerFactory;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
-import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class ScanService {
@@ -36,6 +35,7 @@ public class ScanService {
     private final DomainVerificationService domainVerificationService;
     private final AccessControlService accessControlService;
     private final DevelopmentBypassService developmentBypassService;
+    private final VerificationChallengeService verificationChallengeService;
 
     public ScanService(UserRepository userRepository,
                        DomainRepository domainRepository,
@@ -44,7 +44,8 @@ public class ScanService {
                        StringRedisTemplate redisTemplate,
                        DomainVerificationService domainVerificationService,
                        AccessControlService accessControlService,
-                       DevelopmentBypassService developmentBypassService) {
+                       DevelopmentBypassService developmentBypassService,
+                       VerificationChallengeService verificationChallengeService) {
         this.userRepository = userRepository;
         this.domainRepository = domainRepository;
         this.scanRepository = scanRepository;
@@ -53,6 +54,7 @@ public class ScanService {
         this.domainVerificationService = domainVerificationService;
         this.accessControlService = accessControlService;
         this.developmentBypassService = developmentBypassService;
+        this.verificationChallengeService = verificationChallengeService;
     }
 
     /** Cria um scan para o próprio usuário ou para um cliente dentro do escopo do gerente/admin. */
@@ -66,6 +68,8 @@ public class ScanService {
             accessControlService.requireResourceScope(actor, owner);
         }
 
+        if(request.verificationChallengeId()!=null)
+            verificationChallengeService.assertSelectable(request.verificationChallengeId(),actor,owner);
         String url = normalizeUrl(request.url());
         String rawHost = URI.create(url).getHost();
         if (rawHost == null) {
@@ -74,7 +78,7 @@ public class ScanService {
         final String hostname = normalizeHostname(rawHost);
         ensureHostnameExists(hostname);
 
-        Domain domain = findOrCreateDomain(hostname, owner);
+        Domain domain = findOrCreateDomain(hostname, owner,request.verificationChallengeId());
 
         Scan scan = new Scan();
         scan.setDomain(domain);
@@ -95,19 +99,25 @@ public class ScanService {
     }
 
     /** Serialize creation for an owner even when the domain row does not exist yet. */
-    private Domain findOrCreateDomain(String hostname, User user) {
+    private Domain findOrCreateDomain(String hostname, User user,UUID challengeId) {
         User owner = userRepository.findByIdForDomainCreation(user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+        VerificationChallenge challenge=challengeId==null?null:verificationChallengeService.owned(challengeId,owner.getId());
         List<Domain> existing = domainRepository.findCanonicalDomains(hostname,owner.getId());
         if (existing.size() > 1) {
             throw new IllegalStateException("Existem domínios equivalentes com provas diferentes. É necessário revisar os registros antes de criar outra varredura.");
         }
-        if (!existing.isEmpty()) return existing.get(0);
+        if (!existing.isEmpty()) {
+            verificationChallengeService.bind(challenge,existing.get(0));
+            return existing.get(0);
+        }
+        verificationChallengeService.assertUnbound(challenge);
         Domain domain = new Domain();
         domain.setUser(owner);
         domain.setHostname(hostname);
-        domain.setVerificationToken(generateVerificationToken());
+        domain.setVerificationToken(challenge==null?VerificationTokens.generate():challenge.getToken());
         domainRepository.save(domain);
+        verificationChallengeService.bind(challenge,domain);
         return domain;
     }
 
@@ -266,12 +276,6 @@ public class ScanService {
                         "O domínio \"" + hostname + "\" não foi encontrado. Verifique se a URL está correta.");
             }
         }
-    }
-
-    private String generateVerificationToken() {
-        byte[] bytes = new byte[24];
-        new SecureRandom().nextBytes(bytes);
-        return "websec-verify-" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     private String normalizeUrl(String input) {

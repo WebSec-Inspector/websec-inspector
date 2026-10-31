@@ -52,7 +52,7 @@ class ScanServiceAuthorizationTest {
         verification = mock(DomainVerificationService.class);
         bypass = mock(DevelopmentBypassService.class);
         service = new ScanService(users, domains, scans, findings, redis, verification,
-                new AccessControlService(), bypass);
+                new AccessControlService(), bypass, mock(VerificationChallengeService.class));
 
         client = user(1L, User.Role.CLIENTE);
         otherClient = user(2L, User.Role.CLIENTE);

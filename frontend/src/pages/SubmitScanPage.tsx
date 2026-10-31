@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { submitScan, confirmVerification, getScan } from "../services/api";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { submitScan, confirmVerification, getScan, getVerificationChallenge, VerificationChallenge } from "../services/api";
 import { useDomains } from "../context/DomainContext";
 import { toApiError } from "../lib/apiError";
 
@@ -11,7 +11,13 @@ export const RESUME_SCAN_PARAM = "scan";
 
 export default function SubmitScanPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams,setSearchParams] = useSearchParams();
+  const challengeId=searchParams.get("challenge");
+  const [challenge,setChallenge]=useState<VerificationChallenge|null>(null);
+  const [challengeLoading,setChallengeLoading]=useState(Boolean(challengeId));
+  const [challengeError,setChallengeError]=useState<string|null>(null);
+  const [conflict,setConflict]=useState<{token:string;hostname:string}|null>(null);
+  const [existingToken,setExistingToken]=useState<string|null>(null);
   const { selectDomain, refresh: refreshDomains } = useDomains();
   const [url, setUrl] = useState("");
   const [step, setStep] = useState<"form" | "verifying" | "resuming">("form");
@@ -30,6 +36,23 @@ export default function SubmitScanPage() {
   const [nextRetryIn, setNextRetryIn] = useState<number | null>(null);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(()=>{
+    let active=true;
+    setChallenge(null);setChallengeError(null);setChallengeLoading(Boolean(challengeId));
+    if(!challengeId)return;
+    if(searchParams.has(RESUME_SCAN_PARAM)){
+      setChallengeError("Retome a varredura ou selecione um token antecipado, separadamente.");
+      setChallengeLoading(false);return;
+    }
+    getVerificationChallenge(challengeId).then(value=>{
+      if(!active)return;
+      setChallenge(value);
+      if(value.hostname)setUrl(value.hostname);
+    }).catch(err=>{if(active)setChallengeError(toApiError(err).message);})
+      .finally(()=>{if(active)setChallengeLoading(false);});
+    return()=>{active=false;};
+  },[challengeId,searchParams]);
 
   useEffect(() => {
     return () => clearPolling();
@@ -147,6 +170,8 @@ export default function SubmitScanPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if(submitting||challengeLoading||challengeError||conflict)return;
+    if(challengeId&&!challenge)return;
     setError(null);
 
     const validationError = validateUrl(url);
@@ -158,7 +183,7 @@ export default function SubmitScanPage() {
     setSubmitting(true);
     try {
       const normalized = normalizeUrl(url);
-      const scan = await submitScan(normalized);
+      const scan = await submitScan(normalized,challenge?.id);
       setScanId(scan.id);
       setHostname(scan.hostname);
       setToken(scan.verificationToken ?? "");
@@ -168,7 +193,10 @@ export default function SubmitScanPage() {
       refreshDomains();
       setStep("verifying");
     } catch (err: unknown) {
-      setError(resolveErrorMessage(err));
+      const data=(err as {response?:{data?:Record<string,unknown>}})?.response?.data;
+      if(data?.code==="EXISTING_DOMAIN_TOKEN"&&typeof data.existingToken==="string"&&typeof data.hostname==="string"){
+        setConflict({token:data.existingToken,hostname:data.hostname});
+      }else setError(resolveErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -236,6 +264,16 @@ export default function SubmitScanPage() {
       <h1 className="mb-6 text-xl font-semibold">Nova varredura de segurança</h1>
 
       {error && <p className="mb-4 text-sm text-risk-high">{error}</p>}
+      {challengeLoading&&<p className="mb-4 text-sm">Recuperando token selecionado...</p>}
+      {challengeError&&<p role="alert" className="mb-4 text-sm text-risk-high">{challengeError} <Link to="/verificacao/token">Voltar aos tokens</Link></p>}
+      {challenge&&step==="form"&&<div className="mb-4 rounded border border-white/10 p-4 text-sm"><p>Token antecipado selecionado:</p><code className="break-all select-all">{challenge.token}</code>{challenge.hostname&&<p className="mt-2">Vinculado a {challenge.hostname}. Pode ser reutilizado apenas nesse site.</p>}</div>}
+      {existingToken&&step==="form"&&<p className="mb-4 text-sm">O token estável deste site será reutilizado: <code className="break-all select-all">{existingToken}</code></p>}
+      {conflict&&<div role="alert" className="mb-4 rounded border border-risk-medium p-4 text-sm">
+        <p>{conflict.hostname} já tem um token estável. O token antecipado continua disponível e não foi vinculado.</p>
+        <code className="my-3 block break-all select-all">{conflict.token}</code>
+        <p className="mb-3">Use a prova já cadastrada para esse site. Se publicou o token antecipado nele, publique este valor antes de confirmar a verificação.</p>
+        <button type="button" onClick={()=>{setExistingToken(conflict.token);setConflict(null);setChallenge(null);const params=new URLSearchParams(searchParams);params.delete("challenge");setSearchParams(params);}} className="rounded bg-accent px-3 py-2 text-ink">Usar token existente</button>
+      </div>}
 
       {step === "resuming" && (
         <div className="rounded-xl border border-white/10 bg-panel p-6 text-sm text-slate-400">
@@ -245,18 +283,19 @@ export default function SubmitScanPage() {
 
       {step === "form" && (
         <form onSubmit={handleSubmit} className="rounded-xl border border-white/10 bg-panel p-6">
+          {!challengeId&&<Link to="/verificacao/token" className="mb-4 block text-sm text-accent">Gerar token antes de informar o site</Link>}
           <label className="mb-1 block text-sm text-slate-300">URL do site a analisar</label>
           <input
             className="mb-4 w-full rounded-md border border-white/10 bg-ink px-3 py-2 outline-none focus:border-accent"
             placeholder="meusite.com.br ou https://meusite.com.br"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => {setUrl(e.target.value);setConflict(null);setExistingToken(null);}}
             required
           />
           <button
             className="w-full rounded-md bg-accent py-2 font-medium text-ink hover:opacity-90 disabled:opacity-60"
             type="submit"
-            disabled={submitting}
+            disabled={submitting||challengeLoading||Boolean(challengeError)||Boolean(conflict)}
           >
             {submitting ? "Enviando..." : "Continuar"}
           </button>

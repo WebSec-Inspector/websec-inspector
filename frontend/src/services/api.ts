@@ -135,9 +135,39 @@ export async function register(name: string, email: string, password: string) {
   return data as { token: string };
 }
 
-export async function submitScan(url: string) {
-  const { data } = await api.post("/scans", { url });
+export async function submitScan(url: string, verificationChallengeId?: string) {
+  const { data } = await api.post("/scans", { url, ...(verificationChallengeId ? {verificationChallengeId} : {}) });
   return parseScan(data);
+}
+
+export interface VerificationChallenge {
+  id: string;
+  token: string;
+  createdAt: string;
+  domainId: number | null;
+  hostname: string | null;
+}
+
+function parseChallenge(data: unknown): VerificationChallenge {
+  if (!data || typeof data !== "object") throw invalidResponseError("desafio inválido");
+  const raw = data as Record<string,unknown>;
+  if (typeof raw.id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw.id) ||
+      typeof raw.token !== "string" || !raw.token.startsWith("websec-verify-") ||
+      typeof raw.createdAt !== "string" ||
+      (raw.domainId !== null && typeof raw.domainId !== "number") ||
+      (raw.hostname !== null && typeof raw.hostname !== "string")) throw invalidResponseError("contrato do desafio inválido");
+  return raw as unknown as VerificationChallenge;
+}
+
+export async function getCurrentVerificationChallenge() {
+  const response = await api.get("/verification-challenges/current");
+  return response.status === 204 ? null : parseChallenge(response.data);
+}
+export async function issueVerificationChallenge() {
+  return parseChallenge((await api.post("/verification-challenges",{})).data);
+}
+export async function getVerificationChallenge(id: string) {
+  return parseChallenge((await api.get(`/verification-challenges/${encodeURIComponent(id)}`)).data);
 }
 
 export async function confirmVerification(scanId: number) {
