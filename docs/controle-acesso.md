@@ -72,7 +72,19 @@ SPRING_PROFILES_ACTIVE=dev WEBSEC_DEV_BYPASS_ENABLED=true docker compose up --bu
 
 ## Compatibilidade e preparação do banco
 
-`UserRoleConverter` mantém compatibilidade de leitura com valores antigos `USER` e `ADMIN`, mapeando-os para `CLIENTE` e `ADMINISTRADOR`. Novos valores são persistidos com os nomes funcionais atuais. Para normalizar os valores legados já persistidos, execute uma vez `infra/migrations/20261010-normalizar-perfis.sql`. O `ddl-auto: update` atual adiciona `manager_id`, `scans.name` e `scans.deleted_at`; o projeto ainda não possui migrations versionadas automatizadas para o schema completo.
+`UserRoleConverter` mantém compatibilidade de leitura com valores antigos `USER` e `ADMIN`, mapeando-os para `CLIENTE` e `ADMINISTRADOR`. Novos valores são persistidos com os nomes funcionais atuais. O `ddl-auto: update` adiciona colunas, mas não deve ser usado para substituir a constraint histórica de enum. Um banco que ainda aceita apenas `USER` e `ADMIN` rejeita o cadastro de `CLIENTE` com SQLSTATE `23514`, resultando em HTTP 500.
+
+Após backup, aplique `infra/migrations/20261010-normalizar-perfis.sql` com parada em erro:
+
+```bash
+docker exec -i websec-production-postgres-1 \
+  psql -X -v ON_ERROR_STOP=1 -U websec -d websec \
+  < infra/migrations/20261010-normalizar-perfis.sql
+```
+
+Execute no host Docker a partir da cópia do código que contém a migração corrigida, com as permissões necessárias para Docker. O script verifica perfis desconhecidos, bloqueia escritas durante a alteração, substitui o CHECK antigo e normaliza os valores na mesma transação. Preserva IDs, e-mails, senhas e vínculos, sem promover clientes a administradores. Pode ser executado novamente. Caso encontre perfil desconhecido ou exceda o prazo de lock, a transação falha e não deve ser contornada removendo a validação.
+
+O deploy atual não executa esse SQL automaticamente: merge ou rebuild da imagem, por si só, não repara um banco já existente. Confirme o CHECK final e valide cadastro e login depois da aplicação. O projeto ainda não possui migrations automatizadas para o schema completo.
 
 Para bootstrap inicial, execute uma vez no banco de desenvolvimento usando o e-mail de uma conta conhecida:
 
