@@ -35,6 +35,8 @@ class CancelVerificationPostgresTest {
     }
     @Autowired MockMvc http;@Autowired JdbcTemplate jdbc;@Autowired ObjectMapper json;
     @Autowired UserRepository users;@Autowired PasswordEncoder passwords;
+    @jakarta.persistence.PersistenceContext jakarta.persistence.EntityManager entities;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @MockBean DomainVerificationService verification;@MockBean StringRedisTemplate redis;
     private final List<Long> owners=new ArrayList<>();
     @SuppressWarnings("unchecked") private final ListOperations<String,String> notifications=mock(ListOperations.class);
@@ -129,5 +131,26 @@ class CancelVerificationPostgresTest {
         assertEquals(first.get("domainId"),read("/api/verification-challenges/"+challenge.get("id").asText(),session,200).get("domainId"));
         assertEquals(challenge.get("token"),postJson("/api/scans",session,payload,200).get("verificationToken"));
         verifyNoInteractions(verification);verify(redis,never()).opsForList();
+    }
+
+    @Test void metadataEditLoadedBeforeCancellationCannotRestorePendingState()throws Exception{
+        String session=session();JsonNode first=scan(session);
+        CountDownLatch loaded=new CountDownLatch(1),release=new CountDownLatch(1);
+        ExecutorService pool=Executors.newSingleThreadExecutor();
+        try{
+            Future<?> editing=pool.submit(()->new org.springframework.transaction.support.TransactionTemplate(transactions).executeWithoutResult(tx->{
+                var managed=entities.find(br.utfpr.websec.model.Scan.class,first.get("id").asLong());
+                managed.setName("Metadata edit");loaded.countDown();
+                try{assertTrue(release.await(10,TimeUnit.SECONDS));}
+                catch(InterruptedException ex){Thread.currentThread().interrupt();throw new RuntimeException(ex);}
+            }));
+            assertTrue(loaded.await(5,TimeUnit.SECONDS));
+            assertEquals("CANCELLED",postJson(cancel(first),session,Map.of(),200).get("status").asText());
+            release.countDown();editing.get(15,TimeUnit.SECONDS);
+            JsonNode actual=read("/api/scans/"+first.get("id").asLong(),session,200);
+            assertEquals("CANCELLED",actual.get("status").asText());
+            assertEquals("Metadata edit",actual.get("name").asText());
+            assertFalse(actual.get("finishedAt").isNull());
+        }finally{release.countDown();pool.shutdownNow();assertTrue(pool.awaitTermination(15,TimeUnit.SECONDS));}
     }
 }
