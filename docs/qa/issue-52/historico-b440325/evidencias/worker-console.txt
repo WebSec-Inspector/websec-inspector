@@ -1,0 +1,14 @@
+C:\Users\helle\Documents\Codex\2026-10-21\https-github-com-websec-inspector-websec\work\qa-python\requests\__init__.py:113: RequestsDependencyWarning: urllib3 (2.8.0) or chardet (7.7.0)/charset_normalizer (3.5.2) doesn't match a supported version!
+  warnings.warn(
+test_missing_target_raises_instead_of_scanning (test_scan_worker.ScanWorkerTests.test_missing_target_raises_instead_of_scanning) ... ok
+test_severity_boundaries (test_scan_worker.ScanWorkerTests.test_severity_boundaries) ... ok
+test_success_persists_findings_and_completed_status (test_scan_worker.ScanWorkerTests.test_success_persists_findings_and_completed_status) ... 2026-10-21 20:04:59,676 [INFO] Processando scan 42
+2026-10-21 20:04:59,679 [INFO] Scan 42 conclu�do com 1 achados
+ok
+test_zap_failure_persists_failed_and_finished (test_scan_worker.ScanWorkerTests.test_zap_failure_persists_failed_and_finished) ... ok
+test_zap_risk_mapping (test_scan_worker.ScanWorkerTests.test_zap_risk_mapping) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.015s
+
+OK
