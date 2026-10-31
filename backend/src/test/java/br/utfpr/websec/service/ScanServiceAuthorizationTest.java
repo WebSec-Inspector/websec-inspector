@@ -52,7 +52,7 @@ class ScanServiceAuthorizationTest {
         verification = mock(DomainVerificationService.class);
         bypass = mock(DevelopmentBypassService.class);
         service = new ScanService(users, domains, scans, findings, redis, verification,
-                new AccessControlService(), bypass, mock(VerificationChallengeService.class));
+                new AccessControlService(), bypass);
 
         client = user(1L, User.Role.CLIENTE);
         otherClient = user(2L, User.Role.CLIENTE);
@@ -109,6 +109,19 @@ class ScanServiceAuthorizationTest {
         assertEquals("localhost", response.hostname());
         assertEquals("Scan do cliente", response.name());
         verify(domains).findCanonicalDomains("localhost", client.getId());
+    }
+
+
+    @Test
+    void naoCriaScanParaDominioArquivado() {
+        clientDomain.setHostname("localhost");
+        clientDomain.setActive(false);
+        when(domains.findCanonicalDomains("localhost", client.getId())).thenReturn(List.of(clientDomain));
+        when(domains.findByIdForUpdate(7L)).thenReturn(Optional.of(clientDomain));
+
+        assertThrows(IllegalStateException.class, () -> service.submitUrl(client.getEmail(),
+                new ScanRequest("https://localhost", null, null)));
+        verify(scans, never()).save(any(Scan.class));
     }
 
     @Test

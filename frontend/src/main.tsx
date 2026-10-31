@@ -10,7 +10,7 @@ import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import SubmitScanPage from "./pages/SubmitScanPage";
 import ScanReportPage from "./pages/ScanReportPage";
-import VerificationTokenPage from "./pages/VerificationTokenPage";
+import MyDomainsPage from "./pages/MyDomainsPage";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -29,6 +29,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             }
           />
           <Route
+            path="/dominios"
+            element={
+              <ProtectedRoute>
+                <MyDomainsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/scans/novo"
             element={
               <ProtectedRoute>
@@ -36,7 +44,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               </ProtectedRoute>
             }
           />
-          <Route path="/verificacao/token" element={<ProtectedRoute><VerificationTokenPage /></ProtectedRoute>} />
           <Route
             path="/scans/:id"
             element={

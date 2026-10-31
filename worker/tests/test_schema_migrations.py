@@ -47,8 +47,8 @@ class SchemaMigrationTests(unittest.TestCase):
     def legacy(self, role="USER"):
         self.migrate()
         with self.conn.cursor() as cur:
-            cur.execute("DROP TABLE verification_challenges")
             cur.execute("DROP TABLE websec_schema_history")
+            cur.execute("ALTER TABLE domains DROP COLUMN IF EXISTS is_active")
             cur.execute("ALTER TABLE users DROP CONSTRAINT users_role_check")
             cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('legacy@example.invalid','same-hash','Legacy',%s,now())", (role,))
             cur.execute("ALTER TABLE findings DROP CONSTRAINT findings_severity_check")

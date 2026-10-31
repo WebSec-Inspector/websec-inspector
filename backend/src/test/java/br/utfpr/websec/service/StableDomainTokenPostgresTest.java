@@ -1,6 +1,8 @@
 package br.utfpr.websec.service;
 
 import br.utfpr.websec.dto.ScanRequest;
+import br.utfpr.websec.dto.CreateDomainRequest;
+import br.utfpr.websec.dto.DomainCreationResult;
 import br.utfpr.websec.dto.ScanResponse;
 import br.utfpr.websec.model.Domain;
 import br.utfpr.websec.model.User;
@@ -42,6 +44,7 @@ class StableDomainTokenPostgresTest {
     }
 
     @Autowired ScanService service;
+    @Autowired DomainService domainService;
     @Autowired UserRepository users;
     @Autowired DomainRepository domains;
     @Autowired JdbcTemplate jdbc;
@@ -139,6 +142,51 @@ class StableDomainTokenPostgresTest {
         assertThrows(IllegalStateException.class, () -> service.submitUrl(owner.getEmail(),new ScanRequest("http://localhost",null,null)));
         assertEquals(first.getVerificationToken(),domains.findById(first.getId()).orElseThrow().getVerificationToken());
         assertEquals(second.getVerificationToken(),domains.findById(second.getId()).orElseThrow().getVerificationToken());
+    }
+
+    @Test
+    void archivedDomainCanBeReactivatedWithoutLosingTokenOrScanHistory() {
+        User owner = owner();
+        Domain domain = published(owner, "localhost", true);
+        String originalToken = domain.getVerificationToken();
+        jdbc.update("INSERT INTO scans(domain_id,status,created_at) VALUES (?, 'COMPLETED', now())", domain.getId());
+
+        domainService.archiveDomain(owner.getEmail(), domain.getId());
+        assertFalse(domains.findById(domain.getId()).orElseThrow().isActive());
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM scans WHERE domain_id=?", Integer.class, domain.getId()));
+        assertEquals(1, service.history(owner.getEmail(), domain.getId()).size());
+
+        DomainCreationResult reactivated = domainService.createDomain(owner.getEmail(), new CreateDomainRequest("http://localhost/again", null));
+        Domain stored = domains.findById(domain.getId()).orElseThrow();
+        assertFalse(reactivated.created());
+        assertEquals(domain.getId(), reactivated.response().id());
+        assertEquals(originalToken, reactivated.response().verificationToken());
+        assertTrue(stored.isActive());
+        assertNull(stored.getVerifiedAt());
+        assertEquals(1, service.history(owner.getEmail(), domain.getId()).size());
+    }
+
+    @Test
+    void simultaneousDomainRegistrationReturnsTheSameRecordAndToken() throws Exception {
+        User owner = owner();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        Callable<DomainCreationResult> create = () -> {
+            barrier.await(10, TimeUnit.SECONDS);
+            return domainService.createDomain(owner.getEmail(), new CreateDomainRequest("localhost", null));
+        };
+        try {
+            Future<DomainCreationResult> first = pool.submit(create);
+            Future<DomainCreationResult> second = pool.submit(create);
+            DomainCreationResult a = first.get(30, TimeUnit.SECONDS);
+            DomainCreationResult b = second.get(30, TimeUnit.SECONDS);
+            assertEquals(a.response().id(), b.response().id());
+            assertEquals(a.response().verificationToken(), b.response().verificationToken());
+            assertEquals(1, domains.findByUserId(owner.getId()).size());
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(15, TimeUnit.SECONDS));
+        }
     }
 
     private String login(User user) throws Exception {

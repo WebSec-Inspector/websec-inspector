@@ -2,6 +2,8 @@ package br.utfpr.websec.repository;
 
 import br.utfpr.websec.model.Domain;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
@@ -19,8 +21,14 @@ public interface DomainRepository extends JpaRepository<Domain, Long> {
     List<Domain> findCanonicalDomains(@Param("hostname") String hostname, @Param("userId") Long userId);
 
     List<Domain> findByUserId(Long userId);
+    List<Domain> findAllByActiveTrueOrderByHostnameAsc();
     List<Domain> findByUserIdOrderByHostnameAsc(Long userId);
     Optional<Domain> findByVerificationToken(String token);
     Optional<Domain> findFirstByHostnameAndUserId(String hostname, Long userId);
     Optional<Domain> findByHostname(String hostname);
+
+    /** Serializa verificação/arquivamento com a criação de scans para o mesmo domínio. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Domain d where d.id = :id")
+    Optional<Domain> findByIdForUpdate(@Param("id") Long id);
 }

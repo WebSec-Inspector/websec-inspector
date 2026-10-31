@@ -12,7 +12,7 @@ API Spring Boot/Java 17; frontend React/TypeScript com Vite; PostgreSQL; fila Re
 
 | Área | Existe | Falta | Issue principal |
 |---|---|---|---|
-| Domínios | Listagem e criação junto ao scan | CRUD completo, incluindo política de remoção e preservação do histórico | #11; relacionada #10 |
+| Domínios | Cadastro, listagem, verificação, escopo e arquivamento lógico implementados nesta entrega | Validação integrada em PostgreSQL/ambiente de produção; tela pode receber evolução visual | #11; relacionada #10 |
 | Alvo | Hostname persistido | Preservar protocolo, porta e caminho autorizados | #28 |
 | Verificação | DNS TXT e meta tag | Cancelamento persistido e limite de retentativas | #66 |
 | Token | Geração vinculada ao domínio | Antecipação e estabilidade entre scans, inclusive concorrentes | #67, #68 |
@@ -39,3 +39,17 @@ API Spring Boot/Java 17; frontend React/TypeScript com Vite; PostgreSQL; fila Re
 Cada entrega precisa indicar issue, PR, testes executados, limitações e revisão validada. Varredura, emissão de PDF e envio de e-mail devem ter estados independentes: falha no PDF ou SMTP não apaga uma varredura concluída. Novos endpoints precisam respeitar proprietário e escopo de gerente/administrador.
 
 O fluxo integrado a validar é: cadastro → login → domínio/token → comprovação real → scan → achados → PDF → e-mail → histórico/comparação. Incluir expiração, cancelamento, reinício de worker e tentativas de acesso entre contas.
+
+
+## Entrega da issue #11 — gestão de domínios
+
+A API de domínios usa o padrão existente `/api/domains`:
+
+- `GET /api/domains`: lista somente registros ativos, ordenados por hostname, dentro do escopo do ator. O token não é incluído na listagem.
+- `POST /api/domains`: recebe `hostname` e `targetUserId` opcional. Aceita hostname ou URL HTTP/HTTPS, valida DNS, cria sem abrir scan/fila e retorna `201` para novo registro ou `200` para registro idempotente/reativado. O token é retornado somente quando o ator é o próprio proprietário.
+- `POST /api/domains/{id}/verify`: verifica DNS TXT ou meta tag diretamente. Sucesso retorna `200`; prova ausente retorna `409` com `code=VERIFICATION_PENDING`. Não cria scan.
+- `DELETE /api/domains/{id}`: arquiva logicamente e retorna `204`. Scans `PENDING_VERIFICATION`, `QUEUED` ou `RUNNING` impedem o arquivamento com `409`.
+
+A entidade `domains` mantém a unicidade `(hostname,user_id)` e recebe `is_active BOOLEAN NOT NULL DEFAULT TRUE` pela migração versionada `worker/migrations/005_domain_archival.sql`. Reativar reaproveita o ID e o token, mas limpa `verified_at`, exigindo nova comprovação. O histórico continua consultável porque os endpoints de histórico não filtram o estado ativo do domínio.
+
+A tela `/dominios` permite cadastrar, visualizar, verificar e arquivar. Para recuperar o token de um domínio próprio já cadastrado, basta enviar novamente o mesmo hostname pelo formulário: o POST é idempotente e devolve o mesmo token.

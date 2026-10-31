@@ -90,6 +90,12 @@ export default function DashboardPage() {
         </div>
         <div className="flex gap-3">
           <Link
+            to="/dominios"
+            className="rounded-md border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
+          >
+            Meus domínios
+          </Link>
+          <Link
             to="/scans/novo"
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink hover:opacity-90"
           >
@@ -175,14 +181,13 @@ function Content({
     return (
       <StatePanel title="Você ainda não tem domínios cadastrados">
         <p className="mb-4">
-          Submeta uma URL para cadastrar seu primeiro domínio e iniciar a verificação de
-          propriedade.
+          Cadastre um domínio e comprove sua propriedade antes de iniciar a primeira varredura.
         </p>
         <Link
-          to="/scans/novo"
+          to="/dominios"
           className="inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink hover:opacity-90"
         >
-          Submeter uma URL
+          Gerenciar domínios
         </Link>
       </StatePanel>
     );

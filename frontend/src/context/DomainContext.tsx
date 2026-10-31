@@ -20,7 +20,7 @@ const ACTIVE_DOMAIN_STORAGE_KEY = "websec_active_domain_id";
  * A issue #48 exige que o domainId tenha origem e ciclo de vida definidos, em
  * vez de estado implícito ou valor hardcoded. O ciclo é:
  *
- *  1. a lista de domínios vem de `GET /api/domains` (apenas os do usuário autenticado);
+ *  1. a lista de domínios vem de `GET /api/domains` (somente os domínios dentro do escopo autorizado do ator);
  *  2. o domínio ativo é escolhido entre os da lista — preferindo o último
  *     selecionado, depois o primeiro verificado, depois o primeiro da lista;
  *  3. a escolha é persistida em localStorage apenas como *dica*: ela só vale

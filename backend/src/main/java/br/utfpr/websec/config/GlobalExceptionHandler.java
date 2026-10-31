@@ -2,7 +2,6 @@ package br.utfpr.websec.config;
 
 import br.utfpr.websec.exception.DomainNotVerifiedException;
 import br.utfpr.websec.exception.ResourceNotFoundException;
-import br.utfpr.websec.exception.ExistingDomainTokenException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -17,12 +16,6 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    @ExceptionHandler(ExistingDomainTokenException.class)
-    public ResponseEntity<Map<String,Object>> handleExistingDomainToken(ExistingDomainTokenException ex){
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                "error",ex.getMessage(),"code","EXISTING_DOMAIN_TOKEN","existingToken",ex.getExistingToken(),
-                "domainId",ex.getDomainId(),"hostname",ex.getHostname()));
-    }
 
     @ExceptionHandler(DomainNotVerifiedException.class)
     public ResponseEntity<Map<String, String>> handleDomainNotVerified(DomainNotVerifiedException ex) {

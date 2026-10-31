@@ -13,13 +13,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetAddress;
-import java.net.URI;
-import java.net.UnknownHostException;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
 
 @Service
 public class ScanService {
@@ -35,7 +32,6 @@ public class ScanService {
     private final DomainVerificationService domainVerificationService;
     private final AccessControlService accessControlService;
     private final DevelopmentBypassService developmentBypassService;
-    private final VerificationChallengeService verificationChallengeService;
 
     public ScanService(UserRepository userRepository,
                        DomainRepository domainRepository,
@@ -44,8 +40,7 @@ public class ScanService {
                        StringRedisTemplate redisTemplate,
                        DomainVerificationService domainVerificationService,
                        AccessControlService accessControlService,
-                       DevelopmentBypassService developmentBypassService,
-                       VerificationChallengeService verificationChallengeService) {
+                       DevelopmentBypassService developmentBypassService) {
         this.userRepository = userRepository;
         this.domainRepository = domainRepository;
         this.scanRepository = scanRepository;
@@ -54,7 +49,6 @@ public class ScanService {
         this.domainVerificationService = domainVerificationService;
         this.accessControlService = accessControlService;
         this.developmentBypassService = developmentBypassService;
-        this.verificationChallengeService = verificationChallengeService;
     }
 
     /** Cria um scan para o próprio usuário ou para um cliente dentro do escopo do gerente/admin. */
@@ -68,17 +62,10 @@ public class ScanService {
             accessControlService.requireResourceScope(actor, owner);
         }
 
-        if(request.verificationChallengeId()!=null)
-            verificationChallengeService.assertSelectable(request.verificationChallengeId(),actor,owner);
-        String url = normalizeUrl(request.url());
-        String rawHost = URI.create(url).getHost();
-        if (rawHost == null) {
-            throw new IllegalArgumentException("Não foi possível extrair o host da URL informada");
-        }
-        final String hostname = normalizeHostname(rawHost);
-        ensureHostnameExists(hostname);
+        final String hostname = DomainHostname.fromInput(request.url());
+        DomainHostname.ensureExists(hostname);
 
-        Domain domain = findOrCreateDomain(hostname, owner,request.verificationChallengeId());
+        Domain domain = findOrCreateDomain(hostname, owner);
 
         Scan scan = new Scan();
         scan.setDomain(domain);
@@ -90,34 +77,30 @@ public class ScanService {
     }
 
     static String normalizeHostname(String hostname) {
-        String result = hostname.toLowerCase(Locale.ROOT);
-        while (result.endsWith(".")) result = result.substring(0,result.length()-1);
-        // Preserve repeated www subdomains, so normalizing a stored key is idempotent.
-        if (result.startsWith("www.") && !result.startsWith("www.www.")) result = result.substring(4);
-        if (result.isBlank()) throw new IllegalArgumentException("Hostname inválido");
-        return result;
+        return DomainHostname.normalize(hostname);
     }
 
     /** Serialize creation for an owner even when the domain row does not exist yet. */
-    private Domain findOrCreateDomain(String hostname, User user,UUID challengeId) {
+    private Domain findOrCreateDomain(String hostname, User user) {
         User owner = userRepository.findByIdForDomainCreation(user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
-        VerificationChallenge challenge=challengeId==null?null:verificationChallengeService.owned(challengeId,owner.getId());
         List<Domain> existing = domainRepository.findCanonicalDomains(hostname,owner.getId());
         if (existing.size() > 1) {
             throw new IllegalStateException("Existem domínios equivalentes com provas diferentes. É necessário revisar os registros antes de criar outra varredura.");
         }
         if (!existing.isEmpty()) {
-            verificationChallengeService.bind(challenge,existing.get(0));
-            return existing.get(0);
+            Domain candidate = existing.get(0);
+            Domain domain = domainRepository.findByIdForUpdate(candidate.getId()).orElse(candidate);
+            if (!domain.isActive()) {
+                throw new IllegalStateException("Este domínio está arquivado. Reative-o em Meus Domínios antes de iniciar uma varredura.");
+            }
+            return domain;
         }
-        verificationChallengeService.assertUnbound(challenge);
         Domain domain = new Domain();
         domain.setUser(owner);
         domain.setHostname(hostname);
-        domain.setVerificationToken(challenge==null?VerificationTokens.generate():challenge.getToken());
+        domain.setVerificationToken(generateVerificationToken());
         domainRepository.save(domain);
-        verificationChallengeService.bind(challenge,domain);
         return domain;
     }
 
@@ -132,6 +115,9 @@ public class ScanService {
         }
 
         Domain domain = scan.getDomain();
+        if (!domain.isActive()) {
+            throw new IllegalStateException("O domínio foi arquivado e não pode iniciar uma varredura.");
+        }
         if (bypass) {
             developmentBypassService.requireEnabledFor(actor);
             // O bypass é por execução de desenvolvimento; não marca o domínio como comprovado.
@@ -240,15 +226,6 @@ public class ScanService {
                 .toList();
     }
 
-    /** RF — domínios do usuário autenticado, origem do domainId no frontend. */
-    public List<DomainResponse> listDomains(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new IllegalStateException("Usuário não encontrado"));
-        return domainRepository.findByUserIdOrderByHostnameAsc(user.getId()).stream()
-                .map(d -> new DomainResponse(d.getId(), d.getHostname(), d.isVerified(), d.getVerifiedAt()))
-                .toList();
-    }
-
     private ScanResponse toResponse(Scan scan, List<FindingResponse> findings) {
         Domain domain = scan.getDomain();
         return new ScanResponse(
@@ -265,24 +242,9 @@ public class ScanService {
         );
     }
 
-    private void ensureHostnameExists(String hostname) {
-        try {
-            InetAddress.getByName(hostname);
-        } catch (UnknownHostException e) {
-            try {
-                InetAddress.getByName("www." + hostname);
-            } catch (UnknownHostException e2) {
-                throw new IllegalArgumentException(
-                        "O domínio \"" + hostname + "\" não foi encontrado. Verifique se a URL está correta.");
-            }
-        }
-    }
-
-    private String normalizeUrl(String input) {
-        String url = input.trim();
-        if (!url.matches("(?i)^https?://.*")) {
-            url = "https://" + url;
-        }
-        return url;
+    private String generateVerificationToken() {
+        byte[] bytes = new byte[24];
+        new SecureRandom().nextBytes(bytes);
+        return "websec-verify-" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }

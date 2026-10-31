@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface ScanRepository extends JpaRepository<Scan, Long> {
     List<Scan> findByDomainIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long domainId);
+
+    boolean existsByDomainIdAndDeletedAtIsNullAndStatusIn(Long domainId, List<Scan.Status> statuses);
 }

@@ -26,9 +26,15 @@ public class Domain {
     @Column(name = "verified_at")
     private Instant verifiedAt;
 
+    @Column(name = "is_active", nullable = false)
+    private boolean active = true;
+
     public boolean isVerified() {
         return verifiedAt != null;
     }
+
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
 
     public Long getId() { return id; }
     public User getUser() { return user; }
