@@ -46,8 +46,10 @@ function DeliveryPanel({scanId}:{scanId:number}) {
   return <div aria-label="Envio do PDF" className="mt-5 border-t border-white/10 pt-4">
     <h3 className="text-sm font-medium">Envio por e-mail</h3>
     <p className="my-2 text-sm text-slate-400">{delivery ? delivery.enabled ? messages[delivery.status] : 'Envio por e-mail indisponível no momento. O PDF continua disponível para download.' : 'Consultando envio...'}</p>
+    {delivery?.recipient && <p className="mb-2 text-xs text-slate-400">Destinatário: {delivery.recipient}</p>}
     {delivery?.sentAt && <p className="mb-2 text-xs text-slate-400">Enviado em {new Date(delivery.sentAt).toLocaleString('pt-BR')}</p>}
     {delivery?.enabled && delivery.nextAttemptAt && <p className="mb-2 text-xs text-slate-400">Nova tentativa prevista para {new Date(delivery.nextAttemptAt).toLocaleString('pt-BR')}</p>}
+    {delivery?.failureCode && <p className="mb-2 text-xs text-risk-medium">Falha: {delivery.failureCode}</p>}
     {error && <p role="alert" className="mb-2 text-sm text-risk-medium">{error}</p>}
     {paused && <p className="mb-2 text-sm text-slate-400">Consulta automática pausada. Consulte novamente para atualizar.</p>}
     {canRequest && <button disabled={busy} onClick={()=>void request()} className="rounded-md border border-white/20 px-4 py-2 text-sm disabled:opacity-50">{delivery.status==='FAILED'?'Tentar envio novamente':'Enviar PDF por e-mail'}</button>}

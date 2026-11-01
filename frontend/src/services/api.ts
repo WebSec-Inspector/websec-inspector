@@ -226,6 +226,7 @@ export interface EmailDelivery {
   enabled:boolean;
   status:'NOT_REQUESTED'|'PENDING'|'SENDING'|'SENT'|'FAILED';
   attemptCount:number;
+  recipient:string|null;
   sentAt:string|null;
   nextAttemptAt:string|null;
   failureCode:string|null;
@@ -234,7 +235,7 @@ function parseDelivery(data:unknown):EmailDelivery {
   const d=data as EmailDelivery;
   if(!d || typeof d.enabled!=='boolean' || !['NOT_REQUESTED','PENDING','SENDING','SENT','FAILED'].includes(d.status) ||
       !Number.isInteger(d.attemptCount) || d.attemptCount<0 ||
-      ![d.sentAt,d.nextAttemptAt,d.failureCode].every(v=>v===null || typeof v==='string'))
+      ![d.recipient,d.sentAt,d.nextAttemptAt,d.failureCode].every(v=>v===null || typeof v==='string'))
     throw invalidResponseError('estado do envio inválido');
   return d;
 }
