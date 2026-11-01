@@ -56,7 +56,7 @@ class ReportPostgresTest {
     }
     private String login(User u)throws Exception{
         String response=http.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content(json.writeValueAsString(java.util.Map.of("email",u.getEmail(),"password","test-password")))))
+            .content(json.writeValueAsString(java.util.Map.of("email",u.getEmail(),"password","test-password"))))
             .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         return "Bearer "+json.readTree(response).get("token").asText();
     }
