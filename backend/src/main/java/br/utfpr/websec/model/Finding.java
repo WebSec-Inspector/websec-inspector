@@ -58,6 +58,17 @@ public class Finding {
     @Column(name = "execution_timestamp")
     private Instant executionTimestamp;
 
+    @Column(name = "zap_rule_id")
+    private String zapRuleId;
+
+    @Column(name = "http_method")
+    private String httpMethod;
+
+    public String getZapRuleId() { return zapRuleId; }
+    public void setZapRuleId(String zapRuleId) { this.zapRuleId = zapRuleId; }
+    public String getHttpMethod() { return httpMethod; }
+    public void setHttpMethod(String httpMethod) { this.httpMethod = httpMethod; }
+
     public enum Severity { LOW, MEDIUM, HIGH, CRITICAL, INFORMATIONAL }
 
     public Long getId() { return id; }

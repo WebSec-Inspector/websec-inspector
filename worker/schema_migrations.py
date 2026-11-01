@@ -76,6 +76,7 @@ def validate_schema(cur):
         'email_worker_token':'uuid','email_lease_until':'timestamp with time zone','email_next_attempt_at':'timestamp with time zone',
         'email_failure_code':'character varying','email_recipient':'character varying'})
     not_null['reports'].update({'email_status','email_attempt_count'})
+    required['findings'].update({'zap_rule_id':'character varying','http_method':'character varying'})
     not_null['domains'].add('is_active')
     required['scans'].update({'attempt_count':'integer','worker_token':'uuid',
         'lease_until':'timestamp with time zone','heartbeat_at':'timestamp with time zone',

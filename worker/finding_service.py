@@ -23,8 +23,8 @@ def write_findings(cur, scan_id: int, findings: list[dict]):
                 scan_id, owasp_category, description, cvss_score, severity,
                 recommendation, title, confidence, affected_url,
                 affected_parameter, evidence, cwe_id, wasc_id,
-                technical_reference, execution_timestamp
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                technical_reference, execution_timestamp, zap_rule_id, http_method
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 scan_id,
@@ -42,5 +42,7 @@ def write_findings(cur, scan_id: int, findings: list[dict]):
                 finding["wasc_id"],
                 finding["technical_reference"],
                 finding["execution_timestamp"],
+                finding.get("zap_rule_id"),
+                finding.get("http_method"),
             ),
         )
