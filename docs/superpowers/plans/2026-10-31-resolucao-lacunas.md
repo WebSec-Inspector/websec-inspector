@@ -21,6 +21,14 @@
 - Antes de encerrar uma issue: implementação + revisão + testes pertinentes + evidência integrada na revisão implantada.
 - Nomes de arquivos novos e interfaces abaixo são propostas; confirmar compatibilidade com os modelos na implementação.
 
+## Verificação obrigatória após cada merge
+
+- Atualizar origin/main e revisar o diff integrado, incluindo alterações de outras pessoas; nunca restaurar arquivos de uma base antiga.
+- Confirmar SHA do merge, CI da main, publicação de imagens e deploy; CI da PR isolada não encerra esta etapa.
+- Conferir version.txt contra o SHA implantado, saúde da API e regressões do fluxo afetado em ambiente controlado.
+- Registrar revisão, execução, evidências e pendências no diário de execução; se falhar, manter a entrega em aberto e corrigir em PR própria.
+- Base de retomada: 20efa0b; preservar CRUD/arquivamento (#79) e correções de deploy (#80/#81) de Jaçanã.
+
 ## Pontos de revisão obrigatórios
 
 1. Reinício após retirada da fila: trabalho deve ser recuperado sem perder o scan nem duplicar seus resultados (T2).
