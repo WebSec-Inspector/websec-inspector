@@ -126,6 +126,13 @@ class ScanComparisonPostgresTest {
         var result=compare(p,u);
         assertEquals(0,result.get("persistent").size());assertEquals(3,result.get("added").size());assertEquals(1,result.get("removed").size());
     }
+    @Test void method_tokens_remain_case_sensitive()throws Exception{
+        User u=owner(User.Role.CLIENTE,null);long[] p=pair(u);
+        finding(p[0],"10020","https://example.invalid/","GET","LOW","Uppercase");
+        finding(p[1],"10020","https://example.invalid/","get","LOW","Lowercase");
+        var result=compare(p,u);
+        assertEquals(0,result.get("persistent").size());assertEquals(1,result.get("added").size());assertEquals(1,result.get("removed").size());
+    }
     @Test void ownership_manager_scope_state_and_same_domain_are_required()throws Exception{
         User manager=owner(User.Role.GERENTE,null),u=owner(User.Role.CLIENTE,manager),other=owner(User.Role.CLIENTE,null),admin=owner(User.Role.ADMINISTRADOR,null);
         long[] p=pair(u);String route="/api/scans/"+p[0]+"/compare/"+p[1];

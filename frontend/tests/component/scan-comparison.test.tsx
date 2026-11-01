@@ -36,6 +36,8 @@ test('legacy data shows uncertainty instead of claiming zero new findings or a c
   expect(await screen.findByText('Comparação limitada')).toBeInTheDocument();
   expect(screen.getAllByText('Indeterminado')).toHaveLength(2);
   expect(screen.getByText('Regra ausente em achados legados.')).toBeInTheDocument();
+  expect(screen.queryByText('Ausente na base')).not.toBeInTheDocument();
+  expect(screen.getByText('Correspondência indeterminada na base')).toBeInTheDocument();
 });
 
 test('changing selection cancels the old comparison and discards its late response',async()=>{
