@@ -10,7 +10,7 @@ Estados do relatório: PENDING, GENERATING, READY e FAILED. NOT_REQUESTED e MISS
 
 - `GET /api/scans/{id}/report`: estado, emissão, versão e código sanitizado; não retorna caminho interno.
 - `POST /api/scans/{id}/report`: solicita ou repete a geração de varredura concluída. Pedidos concorrentes convergem em um Report por scan; pedidos em andamento/prontos permanecem idempotentes. Permite pedir o PDF de scans legados concluídos.
-- `GET /api/scans/{id}/report/download`: PDF como anexo, sem cache. Exige arquivo pronto e válido, de até 32 MiB.
+- `GET /api/scans/{id}/report/download`: PDF como anexo, sem cache. Exige arquivo pronto com cabeçalho PDF e tamanho de até 32 MiB. A validação de disponibilidade não faz análise completa de integridade do formato.
 
 Proprietário, gerente dentro do escopo e administrador seguem as regras existentes. Outra conta, gerente fora do escopo e scans excluídos recebem 404. O cliente nunca fornece caminho de arquivo.
 

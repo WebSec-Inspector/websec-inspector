@@ -60,3 +60,16 @@ class ReportJobsTests(unittest.TestCase):
         self.assertFalse(finish_report(self.conn,old,'old.pdf'))
         self.assertTrue(finish_report(self.conn,new,'new.pdf'))
         self.assertIsNone(claim_report(self.conn))
+
+    def test_repeated_worker_crashes_stop_after_three_claims_without_changing_scan(self):
+        self.completed()
+        from worker.report_jobs import claim_report
+        for _ in range(3):
+            self.assertIsNotNone(claim_report(self.conn))
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE reports SET lease_until=now()-interval '1 second'")
+            self.conn.commit()
+        self.assertIsNone(claim_report(self.conn))
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT s.status,r.status,r.attempt_count FROM scans s JOIN reports r ON r.scan_id=s.id')
+            self.assertEqual(('COMPLETED','FAILED',3),cur.fetchone())
