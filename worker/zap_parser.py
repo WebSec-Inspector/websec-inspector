@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from typing import Any
+import re
 
 
 class ZapParsingError(ValueError):
@@ -28,6 +29,26 @@ def _identifier(value: Any) -> str | None:
     if text is None or text in {"-1", "0"}:
         return None
     return text
+
+
+def _rule_id(alert) -> str | None:
+    plugin = _optional_text(alert.get('pluginId'))
+    reference = _optional_text(alert.get('alertRef'))
+    if plugin is not None and not re.fullmatch(r'[0-9]{1,10}', plugin):
+        return None
+    if reference is not None:
+        if not re.fullmatch(r'[0-9]{1,10}(?:-[0-9]{1,10})?', reference):
+            return None
+        parts = [str(int(part)) for part in reference.split('-')]
+        if plugin is not None and parts[0] != str(int(plugin)):
+            return None
+        return '-'.join(parts)
+    return str(int(plugin)) if plugin is not None else None
+
+
+def _method(value) -> str | None:
+    # HTTP method tokens are case-sensitive (RFC 9110 section 9.1).
+    return value if isinstance(value,str) and re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]{1,255}",value) else None
 
 
 def _timestamp(value: Any) -> datetime | None:
@@ -64,6 +85,8 @@ def parse_zap_alerts(alerts: Any) -> list[dict[str, Any]]:
         cwe_id = _identifier(alert.get("cweid"))
         wasc_id = _identifier(alert.get("wascid"))
         findings.append({
+            "zap_rule_id": _rule_id(alert),
+            "http_method": _method(alert.get('method')),
             "title": title,
             "owasp_category": f"CWE-{cwe_id}" if cwe_id else (f"WASC-{wasc_id}" if wasc_id else "N/A"),
             "description": _optional_text(alert.get("description")) or title,
