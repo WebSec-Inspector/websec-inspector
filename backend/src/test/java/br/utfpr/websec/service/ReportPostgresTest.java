@@ -104,6 +104,13 @@ class ReportPostgresTest {
         http.perform(get("/api/scans/"+id+"/report/download").header("Authorization",login(u))).andExpect(status().isConflict());
         http.perform(post("/api/scans/"+id+"/report").header("Authorization",login(u))).andExpect(status().isAccepted());
         assertEquals("PENDING",jdbc.queryForObject("SELECT status FROM reports WHERE scan_id=?",String.class,id));
+        java.nio.file.Files.writeString(ROOT.resolve("corrupt.pdf"),"invalid PDF");
+        jdbc.update("UPDATE reports SET status='READY',pdf_url='corrupt.pdf' WHERE scan_id=?",id);
+        var corrupt=http.perform(get("/api/scans/"+id+"/report").header("Authorization",login(u)))
+            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertEquals("MISSING",json.readTree(corrupt).get("status").asText());
+        http.perform(post("/api/scans/"+id+"/report").header("Authorization",login(u))).andExpect(status().isAccepted());
+        assertEquals("PENDING",jdbc.queryForObject("SELECT status FROM reports WHERE scan_id=?",String.class,id));
         jdbc.update("UPDATE scans SET deleted_at=now() WHERE id=?",id);
         http.perform(get("/api/scans/"+id+"/report").header("Authorization",login(u))).andExpect(status().isNotFound());
     }
