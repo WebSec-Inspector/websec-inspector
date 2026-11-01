@@ -24,6 +24,8 @@ Se já existe uma release, o deploy faz backup e executa esse gate contra o banc
 
 Uma falha de preflight deixa a aplicação anterior intacta. Uma falha ao reconciliar infraestrutura depois do gate entra no tratamento de recuperação anterior à migração. Depois de invocar a migração, a proteção conservadora contra rollback de imagens permanece: o operador deve confirmar o schema e usar revisão compatível ou restaurar o backup em manutenção.
 
+Se `.release.env` estiver ilegível para `websec` (por exemplo, após uma execução manual como `root`), o deploy recompõe o metadata da release anterior a partir do link `current`, desde que ele aponte para uma release válida. Se o link não permitir identificar a release com segurança, o deploy para antes de interromper serviços; corrija a propriedade e mantenha o arquivo privado com `sudo chown websec:websec /opt/websec-inspector/.release.env && sudo chmod 0600 /opt/websec-inspector/.release.env`.
+
 O preflight não prevê todos os erros possíveis do SQL pendente. Inventário, backup e teste do upgrade numa restauração isolada continuam necessários, especialmente antes da primeira adoção. A aprovação `SCHEMA_ADOPT_LEGACY=true` deve ser usada apenas na execução auditada, não como configuração permanente para aceitar bancos desconhecidos. Após adoção, o histórico permite as próximas atualizações sem essa opção.
 
 ## Evidências automatizadas
