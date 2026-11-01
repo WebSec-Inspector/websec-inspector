@@ -61,7 +61,7 @@ class ScanComparisonPostgresTest {
         return "Bearer "+json.readTree(response).get("token").asText();
     }
     private long scan(User u,String state){
-        Long domain=jdbc.queryForObject("INSERT INTO domains(user_id,hostname,verification_token) VALUES (?,?,?) RETURNING id",Long.class,u.getId(),"example.invalid",UUID.randomUUID().toString());
+        Long domain=jdbc.queryForObject("INSERT INTO domains(user_id,hostname,verification_token) VALUES (?,?,?) RETURNING id",Long.class,u.getId(),UUID.randomUUID()+".example.invalid",UUID.randomUUID().toString());
         return jdbc.queryForObject("INSERT INTO scans(domain_id,status,created_at) VALUES (?,?,now()) RETURNING id",Long.class,domain,state);
     }
     @AfterEach void cleanup()throws Exception{
