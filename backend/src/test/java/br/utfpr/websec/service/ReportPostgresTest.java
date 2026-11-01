@@ -86,7 +86,9 @@ class ReportPostgresTest {
     }
     @Test void downloadRequiresOwnershipOrManagerScopeAndRejectsMissingOrUnsafeFiles()throws Exception{
         User manager=owner(User.Role.GERENTE,null),u=owner(User.Role.CLIENTE,manager),other=owner(User.Role.CLIENTE,null),admin=owner(User.Role.ADMINISTRADOR,null);
-        long id=scan(u,"COMPLETED");String key="scan-"+id+"-fixture.pdf";
+        long id=scan(u,"COMPLETED");
+        http.perform(get("/api/scans/"+id+"/report/download")).andExpect(status().isUnauthorized());
+        String key="scan-"+id+"-fixture.pdf";
         java.nio.file.Files.write(ROOT.resolve(key),"%PDF-1.4\nfixture".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         jdbc.update("INSERT INTO reports(scan_id,pdf_url,status) VALUES (?,?,'READY')",id,key);
         for(User actor:List.of(u,manager,admin)){
@@ -95,6 +97,8 @@ class ReportPostgresTest {
             assertEquals("application/pdf",result.getContentType());assertTrue(result.getHeader("Cache-Control").contains("no-store"));
             assertTrue(result.getContentAsString().startsWith("%PDF"));
         }
+        User outsideManager=owner(User.Role.GERENTE,null);
+        http.perform(get("/api/scans/"+id+"/report/download").header("Authorization",login(outsideManager))).andExpect(status().isNotFound());
         String stranger=login(other);
         for(String suffix:List.of("/report","/report/download"))http.perform(get("/api/scans/"+id+suffix).header("Authorization",stranger)).andExpect(status().isNotFound());
         http.perform(post("/api/scans/"+id+"/report").header("Authorization",stranger)).andExpect(status().isNotFound());

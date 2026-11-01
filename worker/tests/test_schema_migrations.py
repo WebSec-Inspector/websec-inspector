@@ -59,6 +59,31 @@ class SchemaMigrationTests(unittest.TestCase):
             cur.execute("INSERT INTO findings(scan_id,owasp_category,description,cvss_score,severity) VALUES(1,'legacy','keep',3,'LOW')")
         self.conn.commit()
 
+    def test_upgrade_from_domain_archival_preserves_existing_report_and_owner(self):
+        import shutil
+        migrations=Path(__file__).resolve().parents[1]/'migrations'
+        with tempfile.TemporaryDirectory() as folder:
+            for path in migrations.glob('*.sql'):
+                if int(path.name[:3])<=7:shutil.copyfile(path,Path(folder)/path.name)
+            self.migrate(directory=folder)
+        with self.conn.cursor() as cur:
+            cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('preserved@example.invalid','same-hash','Owner','CLIENTE',now())")
+            cur.execute("INSERT INTO domains(user_id,hostname,verification_token,is_active) VALUES (1,'example.invalid','published-token',false)")
+            cur.execute("INSERT INTO scans(domain_id,status,created_at) VALUES (1,'COMPLETED',now())")
+            cur.execute("INSERT INTO reports(scan_id,pdf_url,sent_at) VALUES (1,'/data/reports/scan-1.pdf',now()) RETURNING id,scan_id,pdf_url,sent_at")
+            original=cur.fetchone()
+        self.conn.commit()
+        self.assertEqual([8],self.migrate())
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT id,scan_id,pdf_url,sent_at FROM reports')
+            self.assertEqual(original,cur.fetchone())
+            cur.execute('SELECT status,attempt_count FROM reports')
+            self.assertEqual(('PENDING',0),cur.fetchone())
+            cur.execute('SELECT is_active,verification_token FROM domains')
+            self.assertEqual((False,'published-token'),cur.fetchone())
+            cur.execute('SELECT password_hash FROM users')
+            self.assertEqual(('same-hash',),cur.fetchone())
+
     def test_empty_database_bootstraps_and_repeat_is_noop(self):
         self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8], self.migrate())
         self.assertEqual([], self.migrate())
