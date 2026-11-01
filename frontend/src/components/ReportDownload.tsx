@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {getReport,requestReport,downloadReport,ReportMetadata} from '../services/api';
+import ReportEmail from './ReportEmail';
 
 export default function ReportDownload({scanId}:{scanId:number}) {
   return <ReportPanel key={scanId} scanId={scanId}/>;
@@ -67,5 +68,6 @@ function ReportPanel({scanId}:{scanId:number}) {
       {canGenerate && <button disabled={busy} onClick={()=>void run(false)} className="rounded-md bg-accent px-4 py-2 text-ink disabled:opacity-50">{report.status==='NOT_REQUESTED'?'Gerar PDF':'Gerar PDF novamente'}</button>}
       {(error || paused) && <button disabled={busy} onClick={()=>setRefresh(x=>x+1)} className="rounded-md border border-white/20 px-4 py-2">Consultar PDF novamente</button>}
     </div>
+    {report?.status==='READY' && <ReportEmail scanId={scanId}/>}
   </section>;
 }

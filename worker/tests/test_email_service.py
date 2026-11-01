@@ -15,6 +15,7 @@ class EmailServiceTests(unittest.TestCase):
         with self.environment(), tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'report.pdf';path.write_bytes(b'%PDF-1.4\nexample')
             with patch('worker.email_service.smtplib.SMTP') as smtp:
+                smtp.return_value.__enter__.return_value.send_message.return_value={}
                 for _ in range(2):send_pdf(7,42,1,path,'owner@example.invalid')
                 server=smtp.return_value.__enter__.return_value
                 messages=[call.args[0] for call in server.send_message.call_args_list]
@@ -29,6 +30,7 @@ class EmailServiceTests(unittest.TestCase):
         with self.environment(),tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'r.pdf';path.write_bytes(b'%PDF-1.4')
             with patch.dict(os.environ,{'SMTP_TLS_MODE':'starttls'}),patch('worker.email_service.smtplib.SMTP') as smtp:
+                smtp.return_value.__enter__.return_value.send_message.return_value={}
                 send_pdf(1,1,1,path,'owner@example.invalid')
                 smtp.return_value.__enter__.return_value.starttls.assert_called_once()
             with patch.dict(os.environ,{'SMTP_USER':'secret-user','SMTP_PASSWORD':'secret-password'}),patch('worker.email_service.smtplib.SMTP') as smtp:

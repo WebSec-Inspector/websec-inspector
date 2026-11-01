@@ -1,6 +1,7 @@
 """Fenced PDF jobs. No ZAP calls or SMTP side effects in this queue."""
 from dataclasses import dataclass
 import logging
+import os
 from pathlib import Path
 import uuid
 
@@ -48,7 +49,10 @@ def finish_report(conn,claim,key=None):
                 AND EXISTS (SELECT 1 FROM scans s WHERE s.id=r.scan_id AND s.status='COMPLETED' AND s.deleted_at IS NULL)
                 RETURNING r.id""",('READY' if key else 'FAILED',key,key,
                      None if key else 'PDF_GENERATION_FAILED',claim.id,claim.token))
-            return cur.fetchone() is not None
+            updated = cur.fetchone() is not None
+            if updated and key and os.getenv('REPORT_EMAIL_ENABLED','false') == 'true':
+                cur.execute("UPDATE reports SET email_status='PENDING' WHERE id=%s AND email_status='NOT_REQUESTED'",(claim.id,))
+            return updated
 
 
 def process_next_report(conn):

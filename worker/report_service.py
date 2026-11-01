@@ -1,13 +1,9 @@
 """
-Geração de relatório PDF (RF09) e envio por e-mail (RF10).
+Geração de relatório PDF (RF09); transporte SMTP em email_service.py.
 """
 
 import os
-import smtplib
 import logging
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -17,11 +13,6 @@ from reportlab.lib import colors
 log = logging.getLogger("report_service")
 
 REPORTS_DIR = os.getenv("REPORTS_DIR", "/data/reports")
-SMTP_HOST = os.getenv("SMTP_HOST", "localhost")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "1025"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-REPORT_FROM_EMAIL = os.getenv("REPORT_FROM_EMAIL", "no-reply@websec-inspector.local")
 
 
 def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, metadata=None, file_key=None) -> str:
@@ -114,33 +105,3 @@ def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, me
         if os.path.exists(temporary): os.unlink(temporary)
     log.info('Report published for scan %s',scan_id)
     return str(path)
-
-
-def send_report_email(scan_id: int, pdf_path: str, to_email: str | None = None):
-    to_email = to_email or os.getenv("REPORT_TEST_RECIPIENT", "usuario@exemplo.com")
-
-    msg = MIMEMultipart()
-    msg["From"] = REPORT_FROM_EMAIL
-    msg["To"] = to_email
-    msg["Subject"] = f"WebSec Inspector — Relatório do scan #{scan_id}"
-
-    body = (
-        "Olá,\n\nSegue em anexo o relatório de segurança referente à sua "
-        f"varredura (scan #{scan_id}).\n\nEquipe WebSec Inspector."
-    )
-    msg.attach(MIMEText(body, "plain"))
-
-    with open(pdf_path, "rb") as f:
-        part = MIMEApplication(f.read(), _subtype="pdf")
-        part.add_header("Content-Disposition", "attachment", filename=os.path.basename(pdf_path))
-        msg.attach(part)
-
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            if SMTP_USER:
-                server.starttls()
-                server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
-        log.info("Relatório do scan %s enviado para %s", scan_id, to_email)
-    except Exception:
-        log.exception("Falha ao enviar e-mail do scan %s (fluxo do scan não é interrompido)", scan_id)

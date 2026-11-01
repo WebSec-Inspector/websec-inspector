@@ -8,6 +8,7 @@ import psycopg2
 import redis
 
 from report_jobs import process_next_report
+from email_jobs import process_next_email
 from zap_parser import parse_zap_alerts, ZapParsingError
 from zap_runner import run_scan
 from scan_jobs import acquire_scanner, claim_next, complete, fail, heartbeat, LeaseLost
@@ -79,6 +80,8 @@ def main():
         try:
             conn = get_connection()
             if process_next_report(conn):
+                continue
+            if process_next_email(conn):
                 continue
             if acquire_scanner(conn):
                 claim = claim_next(conn)

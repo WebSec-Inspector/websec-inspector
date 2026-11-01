@@ -91,6 +91,7 @@ services:
       redis: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
     environment:
+      WEBSEC_REPORTS_EMAIL_ENABLED: ${REPORT_EMAIL_ENABLED:-false}
       <<: *database
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the server .env}
       JAVA_TOOL_OPTIONS: ${BACKEND_JAVA_TOOL_OPTIONS:--XX:InitialRAMPercentage=10.0 -XX:MaxRAMPercentage=65.0}
@@ -117,6 +118,14 @@ services:
       <<: *database
       ZAP_API_URL: http://zap:8090
       REPORTS_DIR: /data/reports
+      REPORT_EMAIL_ENABLED: ${REPORT_EMAIL_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-starttls}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-15}
+      REPORT_FROM_EMAIL: ${REPORT_FROM_EMAIL:-}
       PYTHONUNBUFFERED: "1"
     volumes: [reports_data:/data/reports]
 

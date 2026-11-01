@@ -31,8 +31,8 @@ class EmailJobsTests(unittest.TestCase):
             with patch('worker.email_jobs.send_pdf') as send:
                 self.assertTrue(process_next_email(self.conn));self.assertTrue(process_next_email(self.conn))
                 self.assertFalse(process_next_email(self.conn))
-                self.assertEqual(['job@example.invalid','second@example.invalid'],[call.args[5] for call in send.call_args_list])
-                self.assertNotEqual(send.call_args_list[0].args[4],send.call_args_list[1].args[4])
+                self.assertEqual(['job@example.invalid','second@example.invalid'],[call.args[4] for call in send.call_args_list])
+                self.assertNotEqual(send.call_args_list[0].args[3],send.call_args_list[1].args[3])
             with self.conn.cursor() as cur:
                 cur.execute("SELECT count(*) FROM reports WHERE email_status='SENT' AND sent_at IS NOT NULL")
                 self.assertEqual(2,cur.fetchone()[0])
