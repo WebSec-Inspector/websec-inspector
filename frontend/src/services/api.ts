@@ -268,12 +268,12 @@ export async function archiveDomain(domainId: number) {
   await api.delete(`/domains/${domainId}`);
 }
 
-export async function getDomainHistory(domainId: number) {
+export async function getDomainHistory(domainId: number, signal?:AbortSignal) {
   if (!Number.isInteger(domainId) || domainId <= 0) {
     // Guarda contra chamadas com domainId inexistente ou inválido.
     throw invalidResponseError(`domainId inválido '${String(domainId)}'`);
   }
-  const { data } = await api.get(`/scans/domain/${domainId}/history`);
+  const { data } = await api.get(`/scans/domain/${domainId}/history`,{signal});
   if (!Array.isArray(data)) {
     throw invalidResponseError("histórico não é um array");
   }
