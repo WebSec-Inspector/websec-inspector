@@ -97,3 +97,12 @@ npm --prefix frontend test -- --reporter=json --outputFile=../qa/artifacts/front
 Resultados gerados de API/fluxo ficam em qa/artifacts, ignorado pelo Git.
 O CI existente já executa npm test e descoberta de testes Python: workflows preservados sem
 modificações nesta PR. Revalidação e comparação histórica: docs/qa/issue-52/README.md.
+
+
+## Entrega SMTP persistida (etapa T5)
+
+O CI atual executa `worker/tests/test_mailpit_delivery.py` com PostgreSQL e Mailpit descartáveis. Esse teste conclui um scan de fixture, gera PDF a partir do banco, entrega por SMTP ao proprietário e compara os bytes do anexo recebido; também confere os estados COMPLETED/READY/SENT. Os testes de fila cobrem duas contas, falhas/backoff, leases, exclusão concorrente e identidade do PDF. Não usam destinatário padrão nem relay externo.
+
+Para o Compose local, ativar explicitamente `REPORT_EMAIL_ENABLED=true`, `SMTP_HOST=mailhog`, `SMTP_PORT=1025`, `SMTP_TLS_MODE=none` e `REPORT_FROM_EMAIL=reports@example.invalid` antes de recriar backend/worker. Remover SMTP_USER/SMTP_PASSWORD para esse servidor local. Configuração externa e recebimento real continuam pendentes; veja [entrega de e-mail](../docs/entrega-email.md).
+
+O script `local-flow.mjs` acima mantém premissas antigas de confirmação duplicada/consulta ao MailHog e ainda precisa da adaptação integrada de T8. Sua evidência histórica não comprova o novo contrato. Não o usar isoladamente para fechar #31/#52; esta PR valida a nova entrega no CI sem alterar o script de QA existente.

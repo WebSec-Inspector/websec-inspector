@@ -73,6 +73,14 @@ class ReportPostgresTest {
         for(int i=ids.size()-1;i>=0;i--)jdbc.update("DELETE FROM users WHERE id=?",ids.get(i));
         try(var files=java.nio.file.Files.list(ROOT)){ for(var f:files.toList())java.nio.file.Files.deleteIfExists(f); }
     }
+    @Test void disabledDeliveryCannotQueueAnyEmail()throws Exception{
+        User u=owner(User.Role.CLIENTE,null);long id=scan(u,"COMPLETED");String auth=login(u);
+        String body=http.perform(get("/api/scans/"+id+"/report/email").header("Authorization",auth))
+            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertFalse(json.readTree(body).get("enabled").asBoolean());
+        http.perform(post("/api/scans/"+id+"/report/email").header("Authorization",auth)).andExpect(status().isConflict());
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM reports WHERE scan_id=?",Integer.class,id));
+    }
     @Test void legacyCompletedScanCanRequestPdfIdempotentlyWithoutRequeueingZap()throws Exception{
         User u=owner(User.Role.CLIENTE,null);long id=scan(u,"COMPLETED");String auth=login(u);
         http.perform(get("/api/scans/"+id+"/report").header("Authorization",auth)).andExpect(status().isOk());
