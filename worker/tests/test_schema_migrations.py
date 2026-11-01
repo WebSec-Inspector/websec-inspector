@@ -65,7 +65,15 @@ class SchemaMigrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             for path in migrations.glob('*.sql'):
                 if int(path.name[:3])<=7:shutil.copyfile(path,Path(folder)/path.name)
-            self.migrate(directory=folder)
+            # Build the historical release from its immutable SQL. The latest
+            # runtime validator intentionally rejects a schema below version 8.
+            from worker.schema_migrations import migration_manifest
+            with self.conn.cursor() as cur:
+                cur.execute("CREATE TABLE websec_schema_history(version integer PRIMARY KEY,checksum varchar(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())")
+                for migration in migration_manifest(folder):
+                    cur.execute(migration.sql)
+                    cur.execute("INSERT INTO websec_schema_history(version,checksum) VALUES (%s,%s)",(migration.version,migration.checksum))
+            self.conn.commit()
         with self.conn.cursor() as cur:
             cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('preserved@example.invalid','same-hash','Owner','CLIENTE',now())")
             cur.execute("INSERT INTO domains(user_id,hostname,verification_token,is_active) VALUES (1,'example.invalid','published-token',false)")
