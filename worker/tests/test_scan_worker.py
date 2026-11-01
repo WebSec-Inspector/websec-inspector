@@ -17,7 +17,7 @@ class ScanWorkerTests(unittest.TestCase):
 
     def test_zap_failure_records_retry_and_never_generates_pdf(self):
         with patch.object(worker,'run_scan',side_effect=TimeoutError()), \
-             patch.object(worker,'fail') as failed, patch.object(worker,'generate_pdf_report') as pdf:
+             patch.object(worker,'fail') as failed, patch.object(worker,'process_next_report') as pdf:
             worker.process_scan(self.conn,self.claim)
         failed.assert_called_once_with(self.conn,self.claim,'SCAN_TIMEOUT',retryable=True)
         pdf.assert_not_called()
@@ -26,24 +26,24 @@ class ScanWorkerTests(unittest.TestCase):
         alerts=[{'alert':'Missing header','risk':'Medium','cweid':'16'}]
         with patch.object(worker,'run_scan',return_value=alerts), \
              patch.object(worker,'complete') as complete, \
-             patch.object(worker,'generate_pdf_report',return_value='/qa/scan.pdf'), \
-             patch.object(worker,'send_report_email'):
+             patch.object(worker,'process_next_report') as pdf:
             worker.process_scan(self.conn,self.claim)
         findings=complete.call_args.args[2]
         self.assertEqual('CWE-16',findings[0]['owasp_category'])
         self.assertEqual(5.5,findings[0]['cvss_score'])
 
-    def test_pdf_failure_does_not_turn_completed_scan_into_failed(self):
+    def test_scan_completion_does_not_run_reporting_inline(self):
         with patch.object(worker,'run_scan',return_value=[]), \
              patch.object(worker,'complete') as completed, patch.object(worker,'fail') as failed, \
-             patch.object(worker,'generate_pdf_report',side_effect=OSError('disk')):
+             patch.object(worker,'process_next_report') as pdf:
             worker.process_scan(self.conn,self.claim)
         completed.assert_called_once_with(self.conn,self.claim,[])
+        pdf.assert_not_called()
         failed.assert_not_called()
 
     def test_lost_lease_discards_result_and_never_emits_report(self):
         with patch.object(worker,'run_scan',side_effect=worker.LeaseLost()), \
-             patch.object(worker,'fail') as failed, patch.object(worker,'generate_pdf_report') as pdf:
+             patch.object(worker,'fail') as failed, patch.object(worker,'process_next_report') as pdf:
             worker.process_scan(self.conn,self.claim)
         failed.assert_not_called()
         pdf.assert_not_called()

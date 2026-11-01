@@ -68,6 +68,10 @@ def validate_schema(cur):
         'findings': {'id', 'scan_id', 'owasp_category', 'description', 'cvss_score', 'severity'},
         'reports': {'id', 'scan_id', 'pdf_url'},
     }
+    required['reports'].update({'status':'character varying','generation_version':'integer',
+        'attempt_count':'integer','worker_token':'uuid','lease_until':'timestamp with time zone',
+        'generated_at':'timestamp with time zone','failure_code':'character varying'})
+    not_null['reports'].update({'status','generation_version','attempt_count'})
     not_null['domains'].add('is_active')
     required['scans'].update({'attempt_count':'integer','worker_token':'uuid',
         'lease_until':'timestamp with time zone','heartbeat_at':'timestamp with time zone',

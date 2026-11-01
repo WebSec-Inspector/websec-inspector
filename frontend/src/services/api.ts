@@ -196,6 +196,32 @@ export async function getScan(scanId: number) {
   return parseScan(data);
 }
 
+export interface ReportMetadata {
+  status: 'NOT_REQUESTED' | 'PENDING' | 'GENERATING' | 'READY' | 'FAILED' | 'MISSING';
+  generatedAt: string | null;
+  generationVersion: number;
+  failureCode: string | null;
+}
+function parseReport(data: unknown): ReportMetadata {
+  const r=data as ReportMetadata;
+  if (!r || !['NOT_REQUESTED','PENDING','GENERATING','READY','FAILED','MISSING'].includes(r.status) ||
+      !Number.isInteger(r.generationVersion) || r.generationVersion<1 ||
+      !(r.generatedAt===null || typeof r.generatedAt==='string') ||
+      !(r.failureCode===null || typeof r.failureCode==='string')) throw invalidResponseError('estado do PDF inválido');
+  return r;
+}
+export async function getReport(scanId:number,signal?:AbortSignal) {
+  return parseReport((await api.get(`/scans/${scanId}/report`,{signal})).data);
+}
+export async function requestReport(scanId:number,signal?:AbortSignal) {
+  return parseReport((await api.post(`/scans/${scanId}/report`,{}, {signal})).data);
+}
+export async function downloadReport(scanId:number,signal?:AbortSignal) {
+  const response=await api.get<Blob>(`/scans/${scanId}/report/download`,{responseType:'blob',signal});
+  if(!response.data.type.includes('application/pdf'))throw invalidResponseError('download não contém um PDF');
+  return response.data;
+}
+
 /** Domínios do usuário autenticado — origem do `domainId` usado no Dashboard. */
 export async function getDomains() {
   const { data } = await api.get("/domains");

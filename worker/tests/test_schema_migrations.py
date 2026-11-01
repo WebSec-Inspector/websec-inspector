@@ -10,7 +10,7 @@ class MigrationManifestTests(unittest.TestCase):
     def test_manifest_is_ordered_and_rejects_edited_history(self):
         from worker.schema_migrations import migration_manifest, validate_history
         manifest = migration_manifest()
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7], [item.version for item in manifest])
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8], [item.version for item in manifest])
         validate_history(manifest, [(m.version, m.checksum) for m in manifest])
         with self.assertRaisesRegex(RuntimeError, "checksum"):
             validate_history(manifest, [(1, "edited")])
@@ -59,12 +59,45 @@ class SchemaMigrationTests(unittest.TestCase):
             cur.execute("INSERT INTO findings(scan_id,owasp_category,description,cvss_score,severity) VALUES(1,'legacy','keep',3,'LOW')")
         self.conn.commit()
 
+    def test_upgrade_from_domain_archival_preserves_existing_report_and_owner(self):
+        import shutil
+        migrations=Path(__file__).resolve().parents[1]/'migrations'
+        with tempfile.TemporaryDirectory() as folder:
+            for path in migrations.glob('*.sql'):
+                if int(path.name[:3])<=7:shutil.copyfile(path,Path(folder)/path.name)
+            # Build the historical release from its immutable SQL. The latest
+            # runtime validator intentionally rejects a schema below version 8.
+            from worker.schema_migrations import migration_manifest
+            with self.conn.cursor() as cur:
+                cur.execute("CREATE TABLE websec_schema_history(version integer PRIMARY KEY,checksum varchar(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())")
+                for migration in migration_manifest(folder):
+                    cur.execute(migration.sql)
+                    cur.execute("INSERT INTO websec_schema_history(version,checksum) VALUES (%s,%s)",(migration.version,migration.checksum))
+            self.conn.commit()
+        with self.conn.cursor() as cur:
+            cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('preserved@example.invalid','same-hash','Owner','CLIENTE',now())")
+            cur.execute("INSERT INTO domains(user_id,hostname,verification_token,is_active) VALUES (1,'example.invalid','published-token',false)")
+            cur.execute("INSERT INTO scans(domain_id,status,created_at) VALUES (1,'COMPLETED',now())")
+            cur.execute("INSERT INTO reports(scan_id,pdf_url,sent_at) VALUES (1,'/data/reports/scan-1.pdf',now()) RETURNING id,scan_id,pdf_url,sent_at")
+            original=cur.fetchone()
+        self.conn.commit()
+        self.assertEqual([8],self.migrate())
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT id,scan_id,pdf_url,sent_at FROM reports')
+            self.assertEqual(original,cur.fetchone())
+            cur.execute('SELECT status,attempt_count FROM reports')
+            self.assertEqual(('PENDING',0),cur.fetchone())
+            cur.execute('SELECT is_active,verification_token FROM domains')
+            self.assertEqual((False,'published-token'),cur.fetchone())
+            cur.execute('SELECT password_hash FROM users')
+            self.assertEqual(('same-hash',),cur.fetchone())
+
     def test_empty_database_bootstraps_and_repeat_is_noop(self):
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7], self.migrate())
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8], self.migrate())
         self.assertEqual([], self.migrate())
         with self.conn.cursor() as cur:
             cur.execute("SELECT count(*) FROM websec_schema_history")
-            self.assertEqual(7, cur.fetchone()[0])
+            self.assertEqual(8, cur.fetchone()[0])
             cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('new@example.invalid','hash','New','CLIENTE',now())")
             cur.execute("INSERT INTO domains(user_id,hostname,verification_token) VALUES (1,'new.example.invalid','new-token') RETURNING is_active")
             self.assertTrue(cur.fetchone()[0])
@@ -73,7 +106,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.legacy()
         with self.assertRaisesRegex(RuntimeError, "adopt"):
             self.migrate()
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7], self.migrate(adopt_legacy=True))
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8], self.migrate(adopt_legacy=True))
         with self.conn.cursor() as cur:
             cur.execute("SELECT password_hash,role FROM users")
             self.assertEqual([('same-hash', 'CLIENTE')], cur.fetchall())

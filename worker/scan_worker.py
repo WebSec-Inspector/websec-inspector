@@ -7,7 +7,7 @@ from urllib.error import URLError
 import psycopg2
 import redis
 
-from report_service import generate_pdf_report, send_report_email
+from report_jobs import process_next_report
 from zap_parser import parse_zap_alerts, ZapParsingError
 from zap_runner import run_scan
 from scan_jobs import acquire_scanner, claim_next, complete, fail, heartbeat, LeaseLost
@@ -63,13 +63,6 @@ def process_scan(conn, claim):
         except LeaseLost:
             log.warning("Failure ignored for stale attempt %s",claim.scan_id)
         return
-    # A completed scan is independent of PDF / SMTP. Full persisted report states
-    # and independent delivery retry are the following plan tasks (#29/#31).
-    try:
-        pdf = generate_pdf_report(claim.scan_id,hostname,findings)
-        send_report_email(claim.scan_id,pdf)
-    except Exception as exc:
-        log.error("Scan %s completed; report/delivery failed: %s",claim.scan_id,type(exc).__name__)
 
 
 def main():
@@ -85,6 +78,8 @@ def main():
         conn = None
         try:
             conn = get_connection()
+            if process_next_report(conn):
+                continue
             if acquire_scanner(conn):
                 claim = claim_next(conn)
                 if claim is not None:
