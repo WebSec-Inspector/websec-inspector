@@ -100,3 +100,17 @@ class EmailJobsTests(unittest.TestCase):
             with patch('worker.email_jobs.send_pdf',side_effect=send):self.assertTrue(process_next_email(self.conn))
             observed['future'].result(timeout=5)
             self.assertTrue(observed['blocked'],'Deletion committed before the in-flight SMTP side effect')
+
+    def test_regenerated_pdf_gets_its_own_delivery_state_instead_of_old_sent(self):
+        from worker.report_jobs import process_next_report
+        from worker.email_jobs import process_next_email
+        with tempfile.TemporaryDirectory() as folder,patch.dict(os.environ,{'REPORT_EMAIL_ENABLED':'true','REPORTS_DIR':folder}),patch('worker.report_service.REPORTS_DIR',folder):
+            self.ready()
+            with patch('worker.email_jobs.send_pdf'):process_next_email(self.conn)
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE reports SET status='PENDING' WHERE scan_id=1")
+            self.conn.commit()
+            self.assertTrue(process_next_report(self.conn))
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT email_status,email_attempt_count FROM reports WHERE scan_id=1")
+                self.assertEqual(('PENDING',0),cur.fetchone())

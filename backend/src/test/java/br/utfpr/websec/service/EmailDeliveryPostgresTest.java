@@ -102,7 +102,8 @@ class EmailDeliveryPostgresTest {
     }
     @Test void missingPdfOrDeletedScanCannotRequestEmail()throws Exception{
         User u=owner(User.Role.CLIENTE,null);long id=ready(u);String route="/api/scans/"+id+"/report/email",auth=login(u);
-        jdbc.update("UPDATE reports SET pdf_url='missing.pdf' WHERE scan_id=?",id);
+        jdbc.update("UPDATE reports SET pdf_url='missing.pdf',email_status='SENDING' WHERE scan_id=?",id);
+        http.perform(post("/api/scans/"+id+"/report").header("Authorization",auth)).andExpect(status().isConflict());
         http.perform(post(route).header("Authorization",auth)).andExpect(status().isConflict());
         jdbc.update("UPDATE scans SET deleted_at=now() WHERE id=?",id);
         http.perform(get(route).header("Authorization",auth)).andExpect(status().isNotFound());

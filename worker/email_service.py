@@ -1,6 +1,7 @@
 """SMTP transport; the caller owns persistent delivery state and retries."""
 from email.message import EmailMessage
 from email.headerregistry import Address
+from email.utils import formatdate
 import hashlib
 import os
 from pathlib import Path
@@ -66,11 +67,13 @@ def send_pdf(report_id, scan_id, version, pdf_path, recipient):
     message['From'] = sender
     message['To'] = recipient
     message['Subject'] = f'WebSec Inspector — Relatório da varredura #{scan_id}'
+    message['Date'] = formatdate(usegmt=True)
     digest = hashlib.sha256(payload).hexdigest()[:16]
     message['Message-ID'] = f'<report-{report_id}-v{version}-{digest}@{sender.split("@")[1]}>'
     message.set_content(f'Olá,\n\nSegue o relatório da varredura #{scan_id}. '
                         'Os resultados precisam de validação humana.\n\nEquipe WebSec Inspector.')
     message.add_attachment(payload, maintype='application', subtype='pdf', filename=f'websec-scan-{scan_id}.pdf')
+    accepted = False
     try:
         context = ssl.create_default_context()
         client = smtplib.SMTP_SSL(host, port, timeout=timeout, context=context) if mode == 'tls' else smtplib.SMTP(host, port, timeout=timeout)
@@ -82,16 +85,21 @@ def send_pdf(report_id, scan_id, version, pdf_path, recipient):
             refused = smtp.send_message(message)
             if refused:
                 raise DeliveryError('SMTP_RECIPIENT_REJECTED')
+            accepted = True
     except DeliveryError:
         raise
-    except smtplib.SMTPAuthenticationError:
-        raise DeliveryError('SMTP_AUTHENTICATION_FAILED') from None
-    except smtplib.SMTPRecipientsRefused as exc:
-        transient = any(code < 500 for code, _ in exc.recipients.values())
-        raise DeliveryError('SMTP_RECIPIENT_REJECTED', retryable=transient) from None
-    except (ssl.SSLError, smtplib.SMTPNotSupportedError):
-        raise DeliveryError('SMTP_TLS_FAILED') from None
-    except smtplib.SMTPResponseException as exc:
-        raise DeliveryError('SMTP_REJECTED', retryable=exc.smtp_code < 500) from None
-    except (OSError, smtplib.SMTPException):
+    except (OSError, smtplib.SMTPException) as exc:
+        # DATA acceptance is authoritative. A failed QUIT cannot undo it and
+        # must not schedule a duplicate. The context manager still closes TCP.
+        if accepted:
+            return
+        if isinstance(exc,smtplib.SMTPAuthenticationError):
+            raise DeliveryError('SMTP_AUTHENTICATION_FAILED') from None
+        if isinstance(exc,smtplib.SMTPRecipientsRefused):
+            transient = any(code < 500 for code, _ in exc.recipients.values())
+            raise DeliveryError('SMTP_RECIPIENT_REJECTED', retryable=transient) from None
+        if isinstance(exc,(ssl.SSLError,smtplib.SMTPNotSupportedError)):
+            raise DeliveryError('SMTP_TLS_FAILED') from None
+        if isinstance(exc,smtplib.SMTPResponseException):
+            raise DeliveryError('SMTP_REJECTED', retryable=exc.smtp_code < 500) from None
         raise DeliveryError('SMTP_UNAVAILABLE', retryable=True) from None

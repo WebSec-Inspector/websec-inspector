@@ -58,8 +58,9 @@ def finish_email(conn, claim, error=None):
                 email_failure_code=%s,email_worker_token=NULL,email_lease_until=NULL,
                 email_next_attempt_at=CASE WHEN %s THEN now()+(%s*interval '1 second') ELSE NULL END
                 WHERE id=%s AND email_worker_token=%s AND email_status='SENDING' AND email_lease_until>now()
+                AND pdf_url=%s AND status='READY'
                 RETURNING id""",(status,status,error.code if error else None,retry,60*claim.attempt,
-                                   claim.report_id,claim.token))
+                                   claim.report_id,claim.token,claim.file_key))
             return cur.fetchone() is not None
 
 
@@ -68,23 +69,24 @@ def process_next_email(conn):
     if claim is None:
         return False
     try:
-        # Recheck the lease and visibility immediately before the external side effect.
+        # Keep scan visibility and this PDF attempt locked through the bounded SMTP
+        # exchange. Soft-delete waits; another worker skips the locked report.
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""SELECT 1 FROM reports r JOIN scans s ON s.id=r.scan_id
                     WHERE r.id=%s AND r.email_worker_token=%s AND r.email_status='SENDING'
                     AND r.email_lease_until>now() AND s.deleted_at IS NULL AND s.status='COMPLETED'
-                    AND r.status='READY' AND r.pdf_url=%s""",(claim.report_id,claim.token,claim.file_key))
+                    AND r.status='READY' AND r.pdf_url=%s FOR SHARE OF s FOR UPDATE OF r""",(claim.report_id,claim.token,claim.file_key))
                 if cur.fetchone() is None:
                     raise DeliveryError('REPORT_UNAVAILABLE')
-        root = Path(os.getenv('REPORTS_DIR','/data/reports')).resolve()
-        key = claim.file_key
-        if not key or '/' in key or '\\' in key or Path(key).name != key or not key.endswith('.pdf'):
-            raise DeliveryError('ATTACHMENT_INVALID')
-        file = root/key
-        if file.is_symlink() or file.resolve().parent != root:
-            raise DeliveryError('ATTACHMENT_INVALID')
-        send_pdf(claim.report_id,claim.scan_id,claim.version,file,claim.recipient)
+            root = Path(os.getenv('REPORTS_DIR','/data/reports')).resolve()
+            key = claim.file_key
+            if not key or '/' in key or '\\' in key or Path(key).name != key or not key.endswith('.pdf'):
+                raise DeliveryError('ATTACHMENT_INVALID')
+            file = root/key
+            if file.is_symlink() or file.resolve().parent != root:
+                raise DeliveryError('ATTACHMENT_INVALID')
+            send_pdf(claim.report_id,claim.scan_id,claim.version,file,claim.recipient)
     except DeliveryError as error:
         finish_email(conn,claim,error)
         log.warning('Report %s email attempt %s: %s',claim.report_id,claim.attempt,error.code)
