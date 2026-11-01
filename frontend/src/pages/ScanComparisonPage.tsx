@@ -83,22 +83,22 @@ function Results({result:r}:{result:ScanComparison}){
         <div key={label} className="rounded-xl border border-white/10 bg-panel p-4"><p className="text-xs text-slate-400">{label}</p><p className="mt-1 text-lg font-semibold">{value}</p></div>)}
     </div>
     <p className="mb-4 text-sm text-slate-400">Ausência de um achado não comprova correção: cobertura e condições do alvo podem mudar entre varreduras. A identidade usa regra ZAP, URL, método HTTP e parâmetro; o texto não identifica o achado.</p>
-    <p className="mb-5 text-xs text-slate-500">Duplicatas agrupadas: {r.duplicateBaseline} na base e {r.duplicateCompared} na comparada. Cada grupo usa a maior severidade observada.</p>
+    <p className="mb-5 text-xs text-slate-500">Duplicatas agrupadas: {r.duplicateBaseline} na base e {r.duplicateCompared} na comparada. Cada grupo usa a maior severidade entre as ocorrências identificadas.</p>
     {r.complete && <><Changes title="Novos em relação à base" rows={r.added}/><Changes title="Não detectados novamente" rows={r.removed}/></>}
     <Changes title="Persistentes" rows={r.persistent}/>
-    {!r.complete && <><Changes title="Sem correspondência confirmada na base" rows={r.unmatchedBaseline}/><Changes title="Sem correspondência confirmada na comparada" rows={r.unmatchedCompared}/></>}
+    {!r.complete && <><Changes title="Sem correspondência confirmada — base" rows={r.unmatchedBaseline} uncertain/><Changes title="Sem correspondência confirmada — comparada" rows={r.unmatchedCompared} uncertain/></>}
     <div className="mt-6 flex gap-4 text-sm text-accent"><Link to={`/scans/${r.baseline.id}`}>Abrir varredura base</Link><Link to={`/scans/${r.compared.id}`}>Abrir varredura comparada</Link></div>
   </section>;
 }
-function Changes({title,rows}:{title:string;rows:ComparisonChange[]}){
+function Changes({title,rows,uncertain=false}:{title:string;rows:ComparisonChange[];uncertain?:boolean}){
   return <section className="mb-6"><h3 className="mb-3 font-medium">{title}</h3>
     {rows.length===0?<p className="text-sm text-slate-500">Nenhum achado nesta categoria.</p>:<ul className="space-y-3">{rows.map(row=>
       <li key={JSON.stringify([row.ruleId,row.url,row.parameter,row.method])} className="rounded-xl border border-white/10 bg-panel p-4">
         <h4 className="mb-2 break-words font-medium">{row.title}</h4>
         <p className="mb-2 break-all text-xs text-slate-400">{row.method} {row.url} · Regra {row.ruleId} · Parâmetro: {row.parameter||'não informado'}</p>
-        <div className="flex items-center gap-2 text-sm">{row.baselineSeverity?<SeverityBadge severity={row.baselineSeverity}/>:<span>Ausente na base</span>}<span>→</span>{row.comparedSeverity?<SeverityBadge severity={row.comparedSeverity}/>:<span>Ausente na comparada</span>}</div>
+        <div className="flex items-center gap-2 text-sm">{row.baselineSeverity?<SeverityBadge severity={row.baselineSeverity}/>:<span>{uncertain?'Correspondência indeterminada na base':'Ausente na base'}</span>}<span>→</span>{row.comparedSeverity?<SeverityBadge severity={row.comparedSeverity}/>:<span>{uncertain?'Correspondência indeterminada na comparada':'Ausente na comparada'}</span>}</div>
         {row.severityChanged && <p className="mt-2 text-xs text-risk-medium">Severidade alterada</p>}
-        <p className="mt-2 text-xs text-slate-500">Ocorrências: {row.baselineOccurrences} → {row.comparedOccurrences}</p>
+        <p className="mt-2 text-xs text-slate-500">Ocorrências identificadas: {uncertain && row.baselineOccurrences===0?'Indeterminado':row.baselineOccurrences} → {uncertain && row.comparedOccurrences===0?'Indeterminado':row.comparedOccurrences}</p>
       </li>)}</ul>}
   </section>;
 }

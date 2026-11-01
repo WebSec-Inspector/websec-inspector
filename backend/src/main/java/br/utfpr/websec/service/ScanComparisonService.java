@@ -90,9 +90,9 @@ public class ScanComparisonService {
         for(Finding finding:findings) {
             String rule=finding.getZapRuleId(),method=finding.getHttpMethod(),url=canonicalUrl(finding.getAffectedUrl());
             if(rule==null || !rule.matches("[0-9]{1,10}(-[0-9]{1,10})?") || method==null
-                    || !method.matches("[A-Za-z]{1,32}") || url==null){unidentified++;continue;}
+                    || !method.matches("[!#$%&'*+.^_`|~0-9A-Za-z-]{1,255}") || url==null){unidentified++;continue;}
             String normalizedRule=String.join("-",Arrays.stream(rule.split("-")).map(p->Long.toString(Long.parseLong(p))).toList());
-            Key key=new Key(normalizedRule,url,Objects.requireNonNullElse(finding.getAffectedParameter(),""),method.toUpperCase(Locale.ROOT));
+            Key key=new Key(normalizedRule,url,Objects.requireNonNullElse(finding.getAffectedParameter(),""),method);
             Group group=groups.get(key);
             if(group==null)groups.put(key,new Group(finding));else{group.add(finding);duplicates++;}
         }

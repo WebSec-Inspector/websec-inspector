@@ -133,6 +133,31 @@ class ScanComparisonPostgresTest {
         var result=compare(p,u);
         assertEquals(0,result.get("persistent").size());assertEquals(1,result.get("added").size());assertEquals(1,result.get("removed").size());
     }
+    @Test void two_worker_fixture_executions_compare_through_the_authenticated_api()throws Exception{
+        User u=owner(User.Role.CLIENTE,null);long[] p=pair(u);
+        String script="""
+            import os,uuid,psycopg2
+            from worker.scan_jobs import Claim,complete
+            from worker.zap_parser import parse_zap_alerts
+            c=psycopg2.connect(os.environ['TEST_POSTGRES_DSN'])
+            for sid,risk,extra in [(%d,'Low',False),(%d,'High',True)]:
+                token=str(uuid.uuid4())
+                with c:
+                    with c.cursor() as cur:
+                        cur.execute("UPDATE scans SET status='RUNNING',worker_token=%%s,lease_until=now()+interval '1 minute' WHERE id=%%s",(token,sid))
+                alerts=[{'alert':'Same rule','risk':risk,'pluginId':'10020','alertRef':'10020-1','method':'GET','url':'https://example.invalid/'}]
+                if extra:alerts.append({'alert':'New rule','risk':'Low','pluginId':'10021','method':'GET','url':'https://example.invalid/other'})
+                complete(c,Claim(sid,token,1),parse_zap_alerts(alerts))
+            c.close()
+            """.formatted(p[0],p[1]);
+        Process process=new ProcessBuilder("python","-c",script).directory(java.nio.file.Path.of("..").toFile()).redirectErrorStream(true).start();
+        assertTrue(process.waitFor(20,TimeUnit.SECONDS));
+        assertEquals(0,process.exitValue(),new String(process.getInputStream().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));
+        var result=compare(p,u);
+        assertTrue(result.get("complete").asBoolean());assertEquals(1,result.get("added").size());
+        assertEquals(1,result.get("persistent").size());assertTrue(result.get("persistent").get(0).get("severityChanged").asBoolean());
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM reports WHERE scan_id IN (?,?) AND status='PENDING'",Integer.class,p[0],p[1]));
+    }
     @Test void ownership_manager_scope_state_and_same_domain_are_required()throws Exception{
         User manager=owner(User.Role.GERENTE,null),u=owner(User.Role.CLIENTE,manager),other=owner(User.Role.CLIENTE,null),admin=owner(User.Role.ADMINISTRADOR,null);
         long[] p=pair(u);String route="/api/scans/"+p[0]+"/compare/"+p[1];

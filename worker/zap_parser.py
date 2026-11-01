@@ -47,8 +47,8 @@ def _rule_id(alert) -> str | None:
 
 
 def _method(value) -> str | None:
-    text = _optional_text(value)
-    return text.upper() if text and re.fullmatch(r'[A-Za-z]{1,32}',text) else None
+    # HTTP method tokens are case-sensitive (RFC 9110 section 9.1).
+    return value if isinstance(value,str) and re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]{1,255}",value) else None
 
 
 def _timestamp(value: Any) -> datetime | None:
