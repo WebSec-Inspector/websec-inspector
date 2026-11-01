@@ -6,7 +6,7 @@ import {api} from '../../src/services/api';
 import ReportDownload from '../../src/components/ReportDownload';
 
 let http:MockAdapter;
-beforeEach(()=>{http=new MockAdapter(api,{onNoMatch:'throwException'});});
+beforeEach(()=>{http=new MockAdapter(api,{onNoMatch:'throwException'});http.onGet('/scans/42/report/email').reply(200,{enabled:false,status:'NOT_REQUESTED',attemptCount:0,sentAt:null,nextAttemptAt:null,failureCode:null});});
 afterEach(()=>http.restore());
 
 test('failed PDF can retry independently without confirming or submitting a scan',async()=>{
@@ -25,5 +25,5 @@ test('ready PDF offers authenticated download and failed metadata lookup offers 
   http.onGet('/scans/42/report').reply(200,{status:'READY',generatedAt:'2026-10-31T12:00:00Z',generationVersion:1,failureCode:null});
   fireEvent.click(screen.getByRole('button',{name:'Consultar PDF novamente'}));
   expect(await screen.findByRole('button',{name:'Baixar PDF'})).toBeEnabled();
-  await waitFor(()=>expect(http.history.get).toHaveLength(2));
+  await waitFor(()=>expect(http.history.get.filter(x=>x.url==='/scans/42/report')).toHaveLength(2));
 });

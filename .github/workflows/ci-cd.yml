@@ -97,6 +97,11 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U websec_test -d websec_test"
           --health-interval 5s --health-timeout 5s --health-retries 12
+      mailpit:
+        image: axllent/mailpit:v1.29.5
+        ports:
+          - 1025:1025
+          - 8025:8025
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -119,6 +124,7 @@ jobs:
       - name: Test ZAP parsing and PostgreSQL persistence
         env:
           TEST_POSTGRES_DSN: postgresql://websec_test:test-only@localhost:5432/websec_test
+          TEST_MAILPIT_URL: http://localhost:8025
         run: python -m unittest discover -s worker/tests -v
 
   containers:

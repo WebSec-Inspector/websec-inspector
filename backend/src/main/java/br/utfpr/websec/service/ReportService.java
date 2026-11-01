@@ -70,6 +70,8 @@ public class ReportService {
         jdbc.update("INSERT INTO reports(scan_id,pdf_url,status) VALUES (?,'','PENDING') ON CONFLICT (scan_id) DO NOTHING",scanId);
         Metadata current=metadata(scanId);
         if(current.status().equals("FAILED") || current.status().equals("MISSING")) {
+            String delivery=jdbc.queryForObject("SELECT email_status FROM reports WHERE scan_id=?",String.class,scanId);
+            if("SENDING".equals(delivery))throw new IllegalStateException("Aguarde o envio por e-mail em andamento antes de gerar outro PDF.");
             jdbc.update("UPDATE reports SET status='PENDING',attempt_count=0,failure_code=NULL,worker_token=NULL,lease_until=NULL WHERE scan_id=? AND status IN ('FAILED','READY')",scanId);
         }
         return metadata(scanId);

@@ -89,6 +89,7 @@ services:
       redis: {condition: service_started}
       migrate: {condition: service_completed_successfully}
     environment:
+      WEBSEC_REPORTS_EMAIL_ENABLED: ${REPORT_EMAIL_ENABLED:-false}
       JAVA_TOOL_OPTIONS: ${BACKEND_JAVA_TOOL_OPTIONS:--XX:InitialRAMPercentage=10.0 -XX:MaxRAMPercentage=65.0}
       DB_HOST: postgres
       DB_PORT: 5432
@@ -129,9 +130,15 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ZAP_API_URL: http://zap:8090
-      SMTP_HOST: mailhog
-      SMTP_PORT: 1025
       REPORTS_DIR: /data/reports
+      REPORT_EMAIL_ENABLED: ${REPORT_EMAIL_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-none}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-15}
+      REPORT_FROM_EMAIL: ${REPORT_FROM_EMAIL:-reports@example.invalid}
     volumes:
       - reports_data:/data/reports
 

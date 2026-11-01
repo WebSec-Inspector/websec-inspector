@@ -1,6 +1,7 @@
 """Fenced PDF jobs. No ZAP calls or SMTP side effects in this queue."""
 from dataclasses import dataclass
 import logging
+import os
 from pathlib import Path
 import uuid
 
@@ -27,6 +28,7 @@ def claim_report(conn):
                 (status='PENDING' OR (status='GENERATING' AND lease_until < now()))""")
             cur.execute("""SELECT r.id,r.scan_id FROM reports r JOIN scans s ON s.id=r.scan_id
                 WHERE s.status='COMPLETED' AND s.deleted_at IS NULL AND r.attempt_count<3
+                AND r.email_status<>'SENDING'
                 AND (r.status='PENDING' OR (r.status='GENERATING' AND r.lease_until < now()))
                 ORDER BY r.id FOR UPDATE OF r SKIP LOCKED LIMIT 1""")
             row=cur.fetchone()
@@ -48,7 +50,15 @@ def finish_report(conn,claim,key=None):
                 AND EXISTS (SELECT 1 FROM scans s WHERE s.id=r.scan_id AND s.status='COMPLETED' AND s.deleted_at IS NULL)
                 RETURNING r.id""",('READY' if key else 'FAILED',key,key,
                      None if key else 'PDF_GENERATION_FAILED',claim.id,claim.token))
-            return cur.fetchone() is not None
+            updated = cur.fetchone() is not None
+            if updated and key:
+                # This is a new immutable PDF identity, not the attachment of a
+                # previously SENT attempt. Preserve legacy sent_at for audit.
+                email_status='PENDING' if os.getenv('REPORT_EMAIL_ENABLED','false') == 'true' else 'NOT_REQUESTED'
+                cur.execute("""UPDATE reports SET email_status=%s,email_attempt_count=0,
+                    email_failure_code=NULL,email_next_attempt_at=NULL,email_worker_token=NULL,
+                    email_lease_until=NULL WHERE id=%s""",(email_status,claim.id))
+            return updated
 
 
 def process_next_report(conn):
