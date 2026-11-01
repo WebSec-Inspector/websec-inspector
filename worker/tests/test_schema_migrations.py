@@ -64,7 +64,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual([], self.migrate())
         with self.conn.cursor() as cur:
             cur.execute("SELECT count(*) FROM websec_schema_history")
-            self.assertEqual(7, cur.fetchone()[0])
+            self.assertEqual(8, cur.fetchone()[0])
             cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('new@example.invalid','hash','New','CLIENTE',now())")
             cur.execute("INSERT INTO domains(user_id,hostname,verification_token) VALUES (1,'new.example.invalid','new-token') RETURNING is_active")
             self.assertTrue(cur.fetchone()[0])

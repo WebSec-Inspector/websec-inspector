@@ -65,7 +65,7 @@ def process_next_report(conn):
                 # This matches the scanner's current target construction. Original URL
                 # support remains tracked in #28; never pretend that URL was preserved.
                 hostname=metadata['hostname']
-                metadata['target']='http://juice-shop:3000' if hostname=='juice-shop' else 'https://'+hostname
+                metadata['target']=('http://juice-shop:3000' if hostname=='juice-shop' else 'https://'+hostname) + ' (inferido; URL original não registrada)'
                 cur.execute('SELECT * FROM findings WHERE scan_id=%s ORDER BY id',(claim.scan_id,))
                 findings=[dict(row) for row in cur.fetchall()]
         key=f'scan-{claim.scan_id}-{claim.token}.pdf'

@@ -44,7 +44,10 @@ public class ReportService {
             if(Files.isSymbolicLink(file) || !Files.isRegularFile(file,LinkOption.NOFOLLOW_LINKS)
                     || !file.toRealPath().getParent().equals(base))return null;
             long size=Files.size(file);
-            return size>0 && size<=32L*1024*1024 ? file : null;
+            if(size<5 || size>32L*1024*1024)return null;
+            try(var stream=Files.newInputStream(file,LinkOption.NOFOLLOW_LINKS)){
+                return new String(stream.readNBytes(5),java.nio.charset.StandardCharsets.US_ASCII).equals("%PDF-") ? file : null;
+            }
         } catch(IOException ex){return null;}
     }
 

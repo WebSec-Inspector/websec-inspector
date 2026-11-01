@@ -27,3 +27,15 @@ class ReportPdfTests(unittest.TestCase):
                     report_service.generate_pdf_report(1,'example.invalid',[],metadata={},file_key='existing.pdf')
             self.assertEqual(b'previous',final.read_bytes())
             self.assertEqual([final],list(Path(folder).iterdir()))
+
+    def test_oversized_pdf_is_not_published_as_a_ready_file(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(report_service,'REPORTS_DIR',folder):
+            def huge(doc, *args, **kwargs):
+                with open(doc.filename,'wb') as stream:
+                    stream.write(b'%PDF-1.4')
+                    stream.seek(32*1024*1024)
+                    stream.write(b'x')
+            with patch.object(report_service.SimpleDocTemplate,'build',autospec=True,side_effect=huge):
+                with self.assertRaisesRegex(ValueError,'size'):
+                    report_service.generate_pdf_report(1,'example.invalid',[],file_key='huge.pdf')
+            self.assertEqual([],list(Path(folder).iterdir()))

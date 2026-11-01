@@ -107,6 +107,8 @@ def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, me
     try:
         doc=SimpleDocTemplate(temporary,pagesize=A4,leftMargin=60,rightMargin=60,topMargin=48,bottomMargin=52)
         doc.build(story,onFirstPage=footer,onLaterPages=footer)
+        if os.path.getsize(temporary)>32*1024*1024:
+            raise ValueError('PDF size exceeds the download limit')
         os.replace(temporary,path)
     finally:
         if os.path.exists(temporary): os.unlink(temporary)
