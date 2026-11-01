@@ -43,3 +43,13 @@ class EmailServiceTests(unittest.TestCase):
             with self.assertRaises(DeliveryError):send_pdf(1,1,1,Path('/missing/report.pdf'),'owner@example.invalid')
             with self.assertRaises(DeliveryError):send_pdf(1,1,1,Path('/missing/report.pdf'),'a@example.invalid\nBcc: other@example.invalid')
             smtp.assert_not_called()
+
+    def test_quit_error_after_data_acceptance_does_not_turn_success_into_retry(self):
+        import smtplib
+        from worker.email_service import send_pdf
+        with self.environment(), tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'r.pdf';path.write_bytes(b'%PDF-1.4')
+            with patch('worker.email_service.smtplib.SMTP') as smtp:
+                smtp.return_value.__enter__.return_value.send_message.return_value={}
+                smtp.return_value.__exit__.side_effect=smtplib.SMTPResponseException(421,b'closing')
+                send_pdf(1,1,1,path,'owner@example.invalid')

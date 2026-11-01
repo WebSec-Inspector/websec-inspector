@@ -64,3 +64,39 @@ class EmailJobsTests(unittest.TestCase):
             self.assertTrue(finish_email(self.conn,new))
             with patch.dict(os.environ,{'REPORT_EMAIL_ENABLED':'false'}),patch('worker.email_jobs.send_pdf') as send:
                 self.assertFalse(process_next_email(self.conn));send.assert_not_called()
+
+    def test_replaced_pdf_cannot_be_marked_sent_by_an_old_email_attempt(self):
+        from worker.email_jobs import claim_email,finish_email
+        with tempfile.TemporaryDirectory() as folder,patch.dict(os.environ,{'REPORT_EMAIL_ENABLED':'true','REPORTS_DIR':folder}),patch('worker.report_service.REPORTS_DIR',folder):
+            self.ready();old=claim_email(self.conn)
+            with self.conn.cursor() as cur:cur.execute("UPDATE reports SET pdf_url='replacement.pdf' WHERE id=%s",(old.report_id,))
+            self.conn.commit()
+            self.assertFalse(finish_email(self.conn,old))
+
+    def test_delete_waits_for_inflight_send_instead_of_committing_before_smtp(self):
+        from worker.email_jobs import process_next_email
+        from concurrent.futures import ThreadPoolExecutor
+        import threading
+        import psycopg2
+        from psycopg2 import sql
+        observed={};started=threading.Event()
+        def delete():
+            conn=psycopg2.connect(os.environ['TEST_POSTGRES_DSN'])
+            try:
+                with conn:
+                    with conn.cursor() as cur:
+                        cur.execute(sql.SQL('SET search_path TO {}').format(sql.Identifier(self.schema)))
+                        cur.execute("SET LOCAL lock_timeout='5s'")
+                        started.set()
+                        cur.execute('UPDATE scans SET deleted_at=now() WHERE id=1')
+            finally:conn.close()
+        with tempfile.TemporaryDirectory() as folder,patch.dict(os.environ,{'REPORT_EMAIL_ENABLED':'true','REPORTS_DIR':folder}),patch('worker.report_service.REPORTS_DIR',folder),ThreadPoolExecutor(max_workers=1) as pool:
+            self.ready()
+            def send(*args):
+                observed['future']=pool.submit(delete)
+                started.wait(2)
+                try:observed['future'].result(timeout=.2);observed['blocked']=False
+                except TimeoutError:observed['blocked']=True
+            with patch('worker.email_jobs.send_pdf',side_effect=send):self.assertTrue(process_next_email(self.conn))
+            observed['future'].result(timeout=5)
+            self.assertTrue(observed['blocked'],'Deletion committed before the in-flight SMTP side effect')
