@@ -104,6 +104,7 @@ services:
       SMTP_PORT: 1025
     ports:
       - "8080:8080"
+    volumes: [reports_data:/data/reports:ro]
 
   worker:
     build: ./worker

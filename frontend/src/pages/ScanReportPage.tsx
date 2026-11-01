@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import SeverityBadge from "../components/SeverityBadge";
+import ReportDownload from "../components/ReportDownload";
 import ScanStatusBadge from "../components/ScanStatusBadge";
 import { ErrorPanel, LoadingPanel, StatePanel } from "../components/FeedbackState";
 import { useScanPolling } from "../hooks/useScanPolling";
@@ -172,6 +173,7 @@ export default function ScanReportPage() {
         </div>
       )}
 
+      {scan.status === "COMPLETED" && <ReportDownload scanId={scan.id} />}
       <Findings scan={scan} transient={transient} />
     </Shell>
   );

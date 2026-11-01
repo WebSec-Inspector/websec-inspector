@@ -101,6 +101,7 @@ services:
       timeout: 5s
       retries: 12
       start_period: 45s
+    volumes: [reports_data:/data/reports:ro]
 
   worker:
     <<: *defaults

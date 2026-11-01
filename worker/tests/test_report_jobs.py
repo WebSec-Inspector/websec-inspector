@@ -4,13 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from test_scan_jobs import ScanJobTests
+import test_scan_jobs
 
 
 @unittest.skipUnless(os.getenv('TEST_POSTGRES_DSN'), 'TEST_POSTGRES_DSN not configured')
 class ReportJobsTests(unittest.TestCase):
-    setUp = ScanJobTests.setUp
-    tearDown = ScanJobTests.tearDown
+    setUp = test_scan_jobs.ScanJobTests.setUp
+    tearDown = test_scan_jobs.ScanJobTests.tearDown
 
     def completed(self):
         from worker.scan_jobs import claim_next, complete

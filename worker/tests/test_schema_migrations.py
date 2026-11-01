@@ -10,7 +10,7 @@ class MigrationManifestTests(unittest.TestCase):
     def test_manifest_is_ordered_and_rejects_edited_history(self):
         from worker.schema_migrations import migration_manifest, validate_history
         manifest = migration_manifest()
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7], [item.version for item in manifest])
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8], [item.version for item in manifest])
         validate_history(manifest, [(m.version, m.checksum) for m in manifest])
         with self.assertRaisesRegex(RuntimeError, "checksum"):
             validate_history(manifest, [(1, "edited")])
@@ -60,7 +60,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.conn.commit()
 
     def test_empty_database_bootstraps_and_repeat_is_noop(self):
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7], self.migrate())
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8], self.migrate())
         self.assertEqual([], self.migrate())
         with self.conn.cursor() as cur:
             cur.execute("SELECT count(*) FROM websec_schema_history")
@@ -73,7 +73,7 @@ class SchemaMigrationTests(unittest.TestCase):
         self.legacy()
         with self.assertRaisesRegex(RuntimeError, "adopt"):
             self.migrate()
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7], self.migrate(adopt_legacy=True))
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8], self.migrate(adopt_legacy=True))
         with self.conn.cursor() as cur:
             cur.execute("SELECT password_hash,role FROM users")
             self.assertEqual([('same-hash', 'CLIENTE')], cur.fetchall())
