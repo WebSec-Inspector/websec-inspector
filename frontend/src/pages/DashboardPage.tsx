@@ -247,6 +247,9 @@ function Content({
       )}
 
       {/* 7. Historico carregado. */}
+      {history && history.filter(s=>s.status==='COMPLETED').length>=2 && (
+        <Link to={`/comparar?dominio=${activeDomainId}`} className="mb-4 inline-block rounded-md border border-accent/40 px-4 py-2 text-sm text-accent">Comparar varreduras</Link>
+      )}
       {history !== null && history.length > 0 && <HistoryList scans={history} />}
     </section>
   );

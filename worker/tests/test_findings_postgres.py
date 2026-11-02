@@ -50,6 +50,11 @@ class FindingsPostgresTests(unittest.TestCase):
         # The script contains COMMIT; synchronize psycopg2's connection state
         # before testing the application's connection-managed transactions.
         self.conn.commit()
+        # The current writer requires the additive identity migration as well.
+        identity = Path(__file__).resolve().parents[1] / "migrations/010_finding_identity.sql"
+        with self.conn.cursor() as cur:
+            cur.execute(identity.read_text(encoding="utf-8"))
+        self.conn.commit()
 
     def test_migration_preserves_data_and_supports_long_informational_findings(self):
         self.migrate()
