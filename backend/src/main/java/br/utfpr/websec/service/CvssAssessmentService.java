@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
+import jakarta.persistence.EntityManager;
 
 @Service
 public class CvssAssessmentService {
@@ -19,9 +20,10 @@ public class CvssAssessmentService {
     private final AccessControlService access;
     private final JdbcTemplate jdbc;
     private final Cvss4Calculator calculator;
+    private final EntityManager entityManager;
 
-    public CvssAssessmentService(UserRepository users,FindingRepository findings,AccessControlService access,JdbcTemplate jdbc,Cvss4Calculator calculator){
-        this.users=users;this.findings=findings;this.access=access;this.jdbc=jdbc;this.calculator=calculator;
+    public CvssAssessmentService(UserRepository users,FindingRepository findings,AccessControlService access,JdbcTemplate jdbc,Cvss4Calculator calculator,EntityManager entityManager){
+        this.users=users;this.findings=findings;this.access=access;this.jdbc=jdbc;this.calculator=calculator;this.entityManager=entityManager;
     }
 
     private User actor(String email){return users.findByEmail(email).orElseThrow(()->new ResourceNotFoundException("Usuário não encontrado"));}
@@ -56,6 +58,15 @@ public class CvssAssessmentService {
         var states=jdbc.queryForList("SELECT status FROM scans WHERE id=? AND deleted_at IS NULL FOR UPDATE",String.class,finding.getScan().getId());
         if(states.isEmpty())throw new ResourceNotFoundException("Achado não encontrado");
         if(!"COMPLETED".equals(states.get(0)))throw new IllegalStateException("Avalie apenas achados de varreduras concluídas.");
+        User owner=finding.getScan().getDomain().getUser();
+        // A writer may have waited behind SMTP while an administrator changed
+        // roles/manager. Lock both current user rows and refresh JPA's cache.
+        var lockedUsers=jdbc.queryForList("SELECT id FROM users WHERE id IN (?,?) ORDER BY id FOR SHARE",Long.class,actor.getId(),owner.getId());
+        if(!lockedUsers.contains(actor.getId()) || !lockedUsers.contains(owner.getId()))throw new ResourceNotFoundException("Achado não encontrado");
+        entityManager.refresh(actor);
+        if(!owner.getId().equals(actor.getId()))entityManager.refresh(owner);
+        access.requireResourceScope(actor,owner);
+        access.requireManagerOrAdministrator(actor);
         jdbc.queryForObject("SELECT id FROM findings WHERE id=? FOR UPDATE",Long.class,id);
         var revisions=jdbc.queryForList("SELECT revision FROM finding_cvss_assessments WHERE finding_id=?",Long.class,id);
         long current=revisions.isEmpty()?0:revisions.get(0);

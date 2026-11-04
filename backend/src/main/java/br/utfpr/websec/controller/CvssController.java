@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 public class CvssController {
     public record Preview(@NotBlank @Size(max=255) String vector) {}
     public record Request(@NotBlank @Size(max=255) String vector,@NotBlank @Size(max=2000) String justification,
-                          @Min(0) @Max(9007199254740991L) long expectedRevision) {}
+                          @NotNull @Min(0) @Max(9007199254740991L) Long expectedRevision) {}
     private final Cvss4Calculator calculator;
     private final CvssAssessmentService assessments;
     public CvssController(Cvss4Calculator calculator,CvssAssessmentService assessments){this.calculator=calculator;this.assessments=assessments;}

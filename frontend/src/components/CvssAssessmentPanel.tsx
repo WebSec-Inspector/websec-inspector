@@ -64,7 +64,7 @@ function Panel({findingId,onSaved}:{findingId:number;onSaved?:()=>void}){
       <button type="button" disabled={busy || !calculation || calculation.vector!==vector || !justification.trim()} onClick={()=>void run(true)} className="rounded bg-accent px-4 py-2 text-sm text-ink disabled:opacity-50">Registrar avaliação</button>
     </div>}
     {error && <div className="mt-3"><p role="alert" className="text-sm text-risk-medium">{error}</p><button type="button" disabled={busy} onClick={()=>setRefresh(n=>n+1)} className="mt-2 text-sm text-accent underline">Recarregar avaliação</button></div>}
-    {data && data.history.length>1 && <details className="mt-4"><summary className="cursor-pointer text-sm">Histórico de avaliações anteriores</summary>{data.history.slice(1).map(h=><div key={h.revision} className="mt-3 border-l border-white/20 pl-3 text-xs">
+    {data && data.history.length>1 && <details className="mt-4"><summary className="cursor-pointer text-sm">Histórico de avaliações anteriores (até 20 revisões recentes)</summary>{data.history.slice(1).map(h=><div key={h.revision} className="mt-3 border-l border-white/20 pl-3 text-xs">
       <p>Revisão {h.revision} · CVSS 4.0 Base {h.score.toFixed(1)} · {new Date(h.assessedAt).toLocaleString('pt-BR')}</p><p className="break-all font-mono">{h.vector}</p><p className="whitespace-pre-wrap break-words">{h.justification}</p>
     </div>)}</details>}
   </section>;
