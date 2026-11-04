@@ -57,6 +57,7 @@ type SessionRequest = InternalAxiosRequestConfig & {
 let sessionGeneration = 0;
 let refreshing: Promise<string> | null = null;
 let signingOut: Promise<void> | null = null;
+let authenticating: Promise<{token: string}> | null = null;
 const isAuthRequest = (url = "") => /(?:^|\/)auth\/(?:login|register|refresh|logout)(?:[?#]|$)/.test(url);
 
 export function clearSession() {
@@ -85,11 +86,12 @@ function refreshAccess(): Promise<string> {
 
 export function logout(): void {
   clearSession();
+  if (signingOut) return;
   // The browser applies Set-Cookie before resolving refresh. Revoke afterwards
   // so a late response cannot leave a live descendant cookie after logout.
-  const pending = refreshing;
+  const pending = [refreshing, authenticating];
   signingOut = (async () => {
-    try { await pending; } catch { /* revoked/expired/locally fenced */ }
+    await Promise.allSettled(pending);
     try { await api.post("/auth/logout", {}); } catch { /* local logout is immediate */ }
   })().finally(() => { signingOut = null; });
 }
@@ -235,28 +237,32 @@ function parseDomainCreate(data: unknown): DomainCreateResponse {
   return { ...domain, verificationToken: typeof raw.verificationToken === "string" ? raw.verificationToken : null };
 }
 
-export async function login(email: string, password: string) {
-  await signingOut;
+async function authenticate(path: string, body: object): Promise<{token: string}> {
+  // Serialize cookie-changing operations, including a previous login. A fenced
+  // response still sets the browser cookie; it must finish before the next auth.
+  const previous = [signingOut, refreshing, authenticating];
   clearSession();
-  const generation=sessionGeneration;
-  try { await refreshing; } catch { /* previous session is fenced */ }
-  if(generation!==sessionGeneration) throw new Error("Sessão encerrada.");
-  const { data } = await api.post("/auth/login", { email, password });
-  if(generation!==sessionGeneration) throw new Error("Sessão encerrada.");
-  storeToken(data.token);
-  return data as { token: string };
+  const generation = sessionGeneration;
+  const pending = (async () => {
+    await Promise.allSettled(previous);
+    if (generation !== sessionGeneration) throw new Error("Sessão encerrada.");
+    const {data} = await api.post(path, body);
+    if (generation !== sessionGeneration) throw new Error("Sessão encerrada.");
+    if (typeof data?.token !== 'string' || !data.token) throw invalidResponseError("token de sessão ausente");
+    storeToken(data.token);
+    return data as {token: string};
+  })();
+  authenticating = pending;
+  try { return await pending; }
+  finally { if (authenticating === pending) authenticating = null; }
 }
 
-export async function register(name: string, email: string, password: string) {
-  await signingOut;
-  clearSession();
-  const generation=sessionGeneration;
-  try { await refreshing; } catch { /* previous session is fenced */ }
-  if(generation!==sessionGeneration) throw new Error("Sessão encerrada.");
-  const { data } = await api.post("/auth/register", { name, email, password });
-  if(generation!==sessionGeneration) throw new Error("Sessão encerrada.");
-  storeToken(data.token);
-  return data as { token: string };
+export function login(email: string, password: string) {
+  return authenticate("/auth/login", {email, password});
+}
+
+export function register(name: string, email: string, password: string) {
+  return authenticate("/auth/register", {name, email, password});
 }
 
 export async function getCurrentUser() {

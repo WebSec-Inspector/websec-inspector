@@ -2,7 +2,7 @@ import React from 'react';
 import {afterEach, beforeEach, expect, test, vi} from 'vitest';
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import MockAdapter from 'axios-mock-adapter';
-import {api} from '../../src/services/api';
+import {api, login, logout} from '../../src/services/api';
 import {AuthProvider, useAuth} from '../../src/context/AuthContext';
 
 let http: MockAdapter;
@@ -71,4 +71,18 @@ test('403 retains session and refresh failure clears it', async () => {
   expect(localStorage.getItem('websec_token')).toBe('expired');expect(http.history.post).toHaveLength(0);
   http.onPost('/auth/refresh').reply(401,{});http.onGet('/private').reply(401,{});
   await expect(api.get('/private')).rejects.toBeTruthy();expect(localStorage.getItem('websec_token')).toBeNull();
+});
+
+test('logout waits for a pending login response so its late cookie is revoked', async () => {
+  const response=defer<[number,object]>();
+  http.onPost('/auth/login').reply(()=>response.promise);
+  http.onPost('/auth/logout').reply(204,{});
+  const attempt=login('qa@example.invalid','password').catch(()=>null);
+  await vi.waitFor(()=>expect(http.history.post).toHaveLength(1));
+  logout();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  expect(http.history.post.map(p=>p.url)).toEqual(['/auth/login']);
+  response.resolve([200,{token:'late-login'}]);await attempt;
+  await vi.waitFor(()=>expect(http.history.post.map(p=>p.url)).toEqual(['/auth/login','/auth/logout']));
+  expect(localStorage.getItem('websec_token')).toBeNull();
 });
