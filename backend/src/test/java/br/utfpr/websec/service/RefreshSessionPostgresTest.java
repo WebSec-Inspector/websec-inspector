@@ -1,6 +1,7 @@
 package br.utfpr.websec.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import br.utfpr.websec.security.JwtService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -19,8 +21,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.*;
+import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -38,6 +42,8 @@ class RefreshSessionPostgresTest {
     @Autowired MockMvc http;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper json;
+    @Autowired DataSource dataSource;
+    @Autowired JwtService jwt;
     String email=UUID.randomUUID()+"@example.invalid";
     @AfterEach void cleanup() {jdbc.update("DELETE FROM users WHERE email=?",email);}
 
@@ -62,7 +68,8 @@ class RefreshSessionPostgresTest {
         assertNull(c.getDomain());assertEquals("Strict",c.getAttribute("SameSite"));
         assertTrue(c.getMaxAge()>0 && c.getMaxAge()<=604800);
         assertEquals("no-store",r.getResponse().getHeader("Cache-Control"));
-        assertEquals(1,json.readTree(r.getResponse().getContentAsByteArray()).size());
+        assertEquals(2,json.readTree(r.getResponse().getContentAsByteArray()).size());
+        assertEquals("Bearer",json.readTree(r.getResponse().getContentAsByteArray()).path("tokenType").asText());
         assertFalse(json.readTree(r.getResponse().getContentAsByteArray()).path("token").asText().isBlank());
         assertTrue(c.getValue().matches("[A-Za-z0-9_-]{43}"));
         assertEquals(hash(c),jdbc.queryForObject("SELECT token_hash FROM refresh_tokens WHERE token_hash=?",String.class,hash(c)));
@@ -111,6 +118,29 @@ class RefreshSessionPostgresTest {
             assertEquals(401,refresh(winner).getResponse().getStatus());
             assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM refresh_tokens WHERE family_id=(SELECT family_id FROM refresh_tokens WHERE token_hash=?)",Integer.class,hash(parent)));
         } finally {pool.shutdownNow();assertTrue(pool.awaitTermination(15,TimeUnit.SECONDS));}
+    }
+
+    @Test void independentServiceInstancesCoordinateThroughPostgresAndLogoutCannotMissConcurrentChild() throws Exception {
+        Cookie parent=cookie(register());
+        var nodeA=new RefreshSessionService(new JdbcTemplate(dataSource),new DataSourceTransactionManager(dataSource),jwt);
+        var nodeB=new RefreshSessionService(new JdbcTemplate(dataSource),new DataSourceTransactionManager(dataSource),jwt);
+        var gate=new CyclicBarrier(2);var pool=Executors.newFixedThreadPool(2);
+        try {
+            var rotation=pool.submit(()->{gate.await(10,TimeUnit.SECONDS);return nodeA.rotate(parent.getValue());});
+            var logout=pool.submit(()->{gate.await(10,TimeUnit.SECONDS);nodeB.logout(parent.getValue());return true;});
+            var child=rotation.get(20,TimeUnit.SECONDS);assertTrue(logout.get(20,TimeUnit.SECONDS));
+            if(child!=null) assertNull(nodeB.rotate(child.secret()));
+            assertNull(nodeA.rotate(parent.getValue()));
+        } finally {pool.shutdownNow();assertTrue(pool.awaitTermination(15,TimeUnit.SECONDS));}
+    }
+
+    @Test void accessTokenLifetimeIsFifteenMinutesAndRevocationIsExplicitlyBoundedByItsExpiry() throws Exception {
+        var r=register();String access=json.readTree(r.getResponse().getContentAsByteArray()).path("token").asText();
+        var claims=json.readTree(Base64.getUrlDecoder().decode(access.split("\\.")[1]));
+        assertEquals(900,claims.path("exp").asLong()-claims.path("iat").asLong());
+        assertTrue(jwt.isValid(access));
+        assertEquals(204,http.perform(post("/api/auth/logout").cookie(cookie(r))).andReturn().getResponse().getStatus());
+        assertEquals(200,http.perform(get("/api/domains").header("Authorization","Bearer "+access)).andReturn().getResponse().getStatus());
     }
 
     @Test void missingMalformedUnknownCookiesFailSafelyAndCrossOriginCannotMutateRefreshOrLogout() throws Exception {
