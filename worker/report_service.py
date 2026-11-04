@@ -35,6 +35,8 @@ def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, me
     styles['Normal'].leading = 13
     styles['Normal'].wordWrap = 'CJK'
     styles['Heading2'].spaceBefore = 14
+    styles['Heading2'].keepWithNext = True
+    styles['Heading3'].keepWithNext = True
 
     def paragraph(value, style='Normal'):
         text = escape(str(value if value is not None else 'Não informado'))
