@@ -3,6 +3,7 @@ package br.utfpr.websec.config;
 import br.utfpr.websec.security.JsonAuthEntryPoint;
 import br.utfpr.websec.security.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -19,6 +20,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
+import java.util.Arrays;
+import java.net.URI;
 
 @Configuration
 @EnableWebSecurity
@@ -27,10 +30,20 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final JsonAuthEntryPoint jsonAuthEntryPoint;
+    private final List<String> corsOrigins;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, JsonAuthEntryPoint jsonAuthEntryPoint) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, JsonAuthEntryPoint jsonAuthEntryPoint,
+                          @Value("${websec.security.cors-origins:http://localhost:5173}") String origins) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.jsonAuthEntryPoint = jsonAuthEntryPoint;
+        this.corsOrigins=Arrays.stream(origins.split(",")).map(String::trim).filter(s->!s.isEmpty()).toList();
+        for(String origin:corsOrigins) {
+            URI uri=URI.create(origin);
+            if(origin.contains("*") || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) ||
+                    uri.getHost()==null || uri.getUserInfo()!=null || uri.getQuery()!=null || uri.getFragment()!=null ||
+                    (uri.getPath()!=null && !uri.getPath().isEmpty()))
+                throw new IllegalArgumentException("CORS requires explicit http(s) origins without paths or wildcards");
+        }
     }
 
     @Bean
@@ -46,7 +59,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        configuration.setAllowedOrigins(corsOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
