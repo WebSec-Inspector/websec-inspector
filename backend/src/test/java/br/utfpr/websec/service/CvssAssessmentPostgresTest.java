@@ -112,6 +112,8 @@ class CvssAssessmentPostgresTest {
         http.perform(put(route).header("Authorization",login(u)).contentType(MediaType.APPLICATION_JSON).content(body(VECTOR,0))).andExpect(status().isForbidden());
         http.perform(get(route).header("Authorization",login(other))).andExpect(status().isNotFound());
         http.perform(put(route).header("Authorization",login(other)).contentType(MediaType.APPLICATION_JSON).content(body(VECTOR,0))).andExpect(status().isNotFound());
+        http.perform(put(route).header("Authorization",login(manager)).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(java.util.Map.of("vector",VECTOR,"justification","Reason")))).andExpect(status().isBadRequest());
         jdbc.update("INSERT INTO reports(scan_id,pdf_url,status,worker_token,lease_until) VALUES (?,'old.pdf','GENERATING',?::uuid,now()+interval '1 minute')",scan,UUID.randomUUID().toString());
         String response=http.perform(put(route).header("Authorization",login(manager)).contentType(MediaType.APPLICATION_JSON).content(body(VECTOR,0)))
             .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
