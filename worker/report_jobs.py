@@ -76,7 +76,11 @@ def process_next_report(conn):
                 # O alvo do relatório é o mesmo que o worker executou. Em scans legados
                 # (sem submitted_url) o alvo foi inferido pela migration 011, e o PDF avisa isso.
                 metadata['target']=metadata['target_url'] + ('' if metadata['submitted_url'] else ' (inferido; URL original não registrada)')
-                cur.execute('SELECT * FROM findings WHERE scan_id=%s ORDER BY id',(claim.scan_id,))
+                cur.execute('''SELECT f.*,c.version AS cvss_version,c.vector AS cvss_vector,
+                    c.base_score AS cvss_base_score,c.severity AS cvss_severity,
+                    c.justification AS cvss_justification,c.assessed_at AS cvss_assessed_at
+                    FROM findings f LEFT JOIN finding_cvss_assessments c ON c.finding_id=f.id
+                    WHERE f.scan_id=%s ORDER BY f.id''',(claim.scan_id,))
                 findings=[dict(row) for row in cur.fetchall()]
         key=f'scan-{claim.scan_id}-{claim.token}.pdf'
         path=generate_pdf_report(claim.scan_id,hostname,findings,metadata=metadata,file_key=key)
