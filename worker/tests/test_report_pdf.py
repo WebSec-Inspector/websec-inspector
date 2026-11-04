@@ -47,3 +47,17 @@ class ReportPdfTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'size'):
                     report_service.generate_pdf_report(1,'example.invalid',[],file_key='huge.pdf')
             self.assertEqual([],list(Path(folder).iterdir()))
+
+    def test_pdf_shows_actual_cvss_vector_version_and_manual_basis_separately_from_zap(self):
+        captured=[];original=report_service.SimpleDocTemplate.build
+        def capture(doc,story,*args,**kwargs):
+            captured.extend(item.getPlainText() for item in story if hasattr(item,'getPlainText'))
+            return original(doc,story,*args,**kwargs)
+        row={'title':'Example','severity':'LOW','cvss_score':3.0,'cvss_version':'4.0',
+             'cvss_vector':'CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N',
+             'cvss_base_score':9.3,'cvss_severity':'CRITICAL','cvss_justification':'Impacto confirmado'}
+        with tempfile.TemporaryDirectory() as folder,patch.object(report_service,'REPORTS_DIR',folder),patch.object(report_service.SimpleDocTemplate,'build',autospec=True,side_effect=capture):
+            report_service.generate_pdf_report(1,'example.invalid',[row])
+        text=' '.join(captured)
+        self.assertIn('CVSS 4.0 Base',text);self.assertIn(row['cvss_vector'],text)
+        self.assertIn('9.3',text);self.assertIn('Impacto confirmado',text)
