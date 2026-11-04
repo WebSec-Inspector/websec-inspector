@@ -7,6 +7,7 @@ import { getDomainHistory, ScanResponse } from "../services/api";
 import { ApiError, toApiError } from "../lib/apiError";
 import { ErrorPanel, LoadingPanel, StatePanel } from "../components/FeedbackState";
 import ScanStatusBadge from "../components/ScanStatusBadge";
+import SeverityBadge from "../components/SeverityBadge";
 
 export default function DashboardPage() {
   const { logout } = useAuth();
@@ -267,7 +268,9 @@ function HistoryList({ scans }: { scans: ScanResponse[] }) {
           >
             <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
               <span className="font-medium">Varredura #{scan.id}</span>
-              <ScanStatusBadge status={scan.status} />
+              <div className="flex flex-wrap items-center gap-2"><ScanStatusBadge status={scan.status} />
+                {scan.findings.length>0 ? <span className="text-xs text-slate-400">Maior risco ZAP <SeverityBadge severity={[...scan.findings].sort((a,b)=>riskRank(b.severity)-riskRank(a.severity))[0].severity}/></span>:scan.status==='COMPLETED' && <span className="text-xs text-slate-400">Sem achados</span>}
+              </div>
             </div>
             <p className="text-xs text-slate-500">
               Criada em{" "}
@@ -315,3 +318,5 @@ function DomainSelector({
     </div>
   );
 }
+
+function riskRank(severity:string){return ({INFORMATIONAL:0,LOW:1,MEDIUM:2,HIGH:3,CRITICAL:4} as Record<string,number>)[severity]??-1;}

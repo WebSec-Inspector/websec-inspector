@@ -74,7 +74,9 @@ public class CvssAssessmentService {
         // Same scan lock as email/delete; invalidate an old PDF attempt atomically.
         jdbc.update("""
             INSERT INTO reports(scan_id,pdf_url,status) VALUES (?,'','PENDING') ON CONFLICT (scan_id) DO UPDATE
-            SET status='PENDING',attempt_count=0,worker_token=NULL,lease_until=NULL,failure_code=NULL
+            SET status='PENDING',attempt_count=0,worker_token=NULL,lease_until=NULL,failure_code=NULL,
+                email_status='NOT_REQUESTED',email_attempt_count=0,email_worker_token=NULL,
+                email_lease_until=NULL,email_next_attempt_at=NULL,email_failure_code=NULL
             """,finding.getScan().getId());
         return view(id,true);
     }
