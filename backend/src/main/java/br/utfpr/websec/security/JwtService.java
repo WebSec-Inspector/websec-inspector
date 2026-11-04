@@ -16,7 +16,7 @@ public class JwtService {
 
     public JwtService(
             @Value("${websec.jwt.secret}") String secret,
-            @Value("${websec.jwt.expiration-ms:86400000}") long expirationMs
+            @Value("${websec.jwt.expiration-ms:900000}") long expirationMs
     ) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
         this.expirationMs = expirationMs;

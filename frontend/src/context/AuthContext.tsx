@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { login as apiLogin, register as apiRegister } from "../services/api";
+import { login as apiLogin, register as apiRegister, logout as apiLogout } from "../services/api";
 
 interface AuthContextValue {
   token: string | null;
@@ -17,8 +17,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handleUnauthorized = () => setToken(null);
+    const handleToken = (event: Event) => setToken((event as CustomEvent<string>).detail);
     window.addEventListener("websec:unauthorized", handleUnauthorized);
-    return () => window.removeEventListener("websec:unauthorized", handleUnauthorized);
+    window.addEventListener("websec:token", handleToken);
+    return () => {
+      window.removeEventListener("websec:unauthorized", handleUnauthorized);
+      window.removeEventListener("websec:token", handleToken);
+    };
   }, []);
 
   async function login(email: string, password: string) {
@@ -34,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function logout() {
-    localStorage.removeItem("websec_token");
+    apiLogout();
     setToken(null);
   }
 

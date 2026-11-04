@@ -94,6 +94,8 @@ services:
       WEBSEC_REPORTS_EMAIL_ENABLED: ${REPORT_EMAIL_ENABLED:-false}
       <<: *database
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the server .env}
+      WEBSEC_REFRESH_COOKIE_SECURE: "true"
+      WEBSEC_CORS_ORIGINS: ${WEBSEC_CORS_ORIGINS:-https://${SITE_HOST}}
       JAVA_TOOL_OPTIONS: ${BACKEND_JAVA_TOOL_OPTIONS:--XX:InitialRAMPercentage=10.0 -XX:MaxRAMPercentage=65.0}
       SERVER_FORWARD_HEADERS_STRATEGY: framework
     healthcheck:

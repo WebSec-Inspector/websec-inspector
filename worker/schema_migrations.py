@@ -90,6 +90,12 @@ def validate_schema(cur):
     required['verification_challenges']={'id':'uuid','user_id':'bigint','token':'character varying',
         'domain_id':'bigint','created_at':'timestamp with time zone'}
     not_null['verification_challenges']={'id','user_id','token','created_at'}
+    required['refresh_families']={'id':'uuid','user_id':'bigint','created_at':'timestamp with time zone',
+        'expires_at':'timestamp with time zone','revoked_at':'timestamp with time zone'}
+    not_null['refresh_families']={'id','user_id','created_at','expires_at'}
+    required['refresh_tokens']={'id':'uuid','family_id':'uuid','token_hash':'character varying',
+        'created_at':'timestamp with time zone','consumed_at':'timestamp with time zone'}
+    not_null['refresh_tokens']={'id','family_id','token_hash','created_at'}
     for table, columns in required.items():
         cur.execute('SELECT column_name,data_type,is_nullable,character_maximum_length,is_identity,column_default FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=%s', (table,))
         actual = {row[0]: row[1:] for row in cur.fetchall()}
@@ -98,7 +104,7 @@ def validate_schema(cur):
                 raise RuntimeError(f'Incompatible schema type: {table}.{column}')
             if column in not_null[table] and actual[column][1] != 'NO':
                 raise RuntimeError(f'Incompatible schema nullable column: {table}.{column}')
-            expected_length = 120 if table == 'scans' and column == 'name' else 64 if table == 'scans' and column == 'failure_code' else 255
+            expected_length = 64 if table == 'refresh_tokens' and column == 'token_hash' else 120 if table == 'scans' and column == 'name' else 64 if table == 'scans' and column == 'failure_code' else 255
             if kind == 'character varying' and actual[column][2] != expected_length:
                 raise RuntimeError(f'Incompatible schema length: {table}.{column}')
             if table == 'domains' and column == 'is_active' and actual[column][4] != 'true':
@@ -127,6 +133,9 @@ def validate_schema(cur):
     needed |= {(table,'f',(column,),target,('id',)) for table in ('finding_cvss_assessments','finding_cvss_history')
         for column,target in [('finding_id','findings'),('assessed_by','users')]}
     needed |= {('finding_cvss_assessments','u',('finding_id',),None,()),('finding_cvss_history','u',('finding_id','revision'),None,())}
+    needed |= {('refresh_tokens','u',('token_hash',),None,()),
+        ('refresh_tokens','f',('family_id',),'refresh_families',('id',)),
+        ('refresh_families','f',('user_id',),'users',('id',))}
     if not needed.issubset(constraints):
         raise RuntimeError('Incompatible schema constraint: missing primary/unique/foreign key')
 
