@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import MockAdapter from "axios-mock-adapter";
 import { api } from "../../src/services/api";
 import ScanListPage from "../../src/pages/ScanListPage";
+import * as scanList from "../../src/services/scanList";
 import { renderPage } from "../helpers";
 
 const mock = new MockAdapter(api);
@@ -82,4 +83,32 @@ it("rejects malformed summary data with a recoverable error", async () => {
   mock.onGet("/scans").reply(200, page([{...row(1), maxSeverity: "UNKNOWN"}]));
   renderPage(<ScanListPage />, "/test");
   expect(await screen.findByRole("alert")).toHaveTextContent("formato esperado");
+});
+
+it("discards late responses even when a transport ignores cancellation", async () => {
+  let resolveOld!: (value: scanList.ScanListResult) => void;
+  vi.spyOn(scanList, "getScans")
+    .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
+    .mockResolvedValueOnce(page([row(20)]) as scanList.ScanListResult);
+  renderPage(<ScanListPage />, "/test");
+  await waitFor(() => expect(resolveOld).toBeDefined());
+  fireEvent.change(screen.getByLabelText("Status"), {target: {value: "COMPLETED"}});
+  expect(await screen.findByRole("link", {name: "Execução 20"})).toBeInTheDocument();
+  await act(async () => { resolveOld(page([row(99)]) as scanList.ScanListResult); });
+  expect(screen.queryByRole("link", {name: "Execução 99"})).not.toBeInTheDocument();
+  expect(screen.getByRole("link", {name: "Execução 20"})).toBeInTheDocument();
+});
+
+it("discards late errors without replacing the current filtered result", async () => {
+  let rejectOld!: (reason: unknown) => void;
+  vi.spyOn(scanList, "getScans")
+    .mockImplementationOnce(() => new Promise((_, reject) => { rejectOld = reject; }))
+    .mockResolvedValueOnce(page([row(20)]) as scanList.ScanListResult);
+  renderPage(<ScanListPage />, "/test");
+  await waitFor(() => expect(rejectOld).toBeDefined());
+  fireEvent.change(screen.getByLabelText("Status"), {target: {value: "COMPLETED"}});
+  expect(await screen.findByRole("link", {name: "Execução 20"})).toBeInTheDocument();
+  await act(async () => { rejectOld({response: {status: 500, data: {error: "Erro antigo"}}}); });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByRole("link", {name: "Execução 20"})).toBeInTheDocument();
 });

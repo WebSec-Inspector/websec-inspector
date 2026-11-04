@@ -108,9 +108,21 @@ class ScanListPostgresTest {
     private void finding(long id,String severity) {
         jdbc.update("INSERT INTO findings(scan_id,owasp_category,description,cvss_score,severity) VALUES (?,'A01','metadata test',0,?)",id,severity);
     }
+    @Test void creation_time_precedes_the_id_tiebreaker_and_large_offsets_remain_valid()throws Exception {
+        User u=user(User.Role.CLIENTE,null);long d=domain(u);
+        long newest=scan(d,"RUNNING"),older=scan(d,"QUEUED");
+        jdbc.update("UPDATE scans SET created_at='2025-01-01T12:00:00Z' WHERE id=?",older);
+        String token=login(u);
+        JsonNode result=list(token,"?size=1");
+        assertEquals(newest,result.get("content").get(0).get("id").asLong());
+        assertEquals(older,list(token,"?size=1&page=1").get("content").get(0).get("id").asLong());
+        assertEquals(0,list(token,"?page=2147483647&size=100").get("content").size());
+        assertEquals(2,result.get("totalElements").asLong());
+    }
     @Test void malformed_and_out_of_bounds_filters_are_safe_bad_requests()throws Exception {
         String token=login(user(User.Role.CLIENTE,null));
         for(String query:List.of("?page=-1","?page=no","?page=2147483648","?size=0","?size=101","?size=no","?status=OTHER","?status=completed","?domainId=0","?domainId=-1","?domainId=no","?domainId=9223372036854775808"))
             http.perform(get("/api/scans"+query).header("Authorization",token)).andExpect(status().isBadRequest());
+        assertEquals(0,list(token,"?domainId=&status=").get("totalElements").asLong());
     }
 }
