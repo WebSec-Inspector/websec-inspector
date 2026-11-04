@@ -7,6 +7,12 @@ const REVOCATION_KEY = 'websec_auth_revocation';
 const ACK_KEY = 'websec_auth_revocation_ack';
 export const SESSION_EVENT = 'websec:session';
 
+// getRandomValues remains available on HTTP so legacy users can sign out
+// locally even when secure-context APIs (Web Locks/randomUUID) are absent.
+function newIdentityMarker(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('');
+}
+
 export function currentEpoch(): string { return localStorage.getItem(EPOCH_KEY) ?? 'legacy'; }
 export function pendingRevocation(): string | null {
   const marker = localStorage.getItem(REVOCATION_KEY);
@@ -27,7 +33,7 @@ export function sessionSnapshot() {
 }
 export function notifySession() { window.dispatchEvent(new Event(SESSION_EVENT)); }
 export function markRevocation() {
-  localStorage.setItem(REVOCATION_KEY, crypto.randomUUID());
+  localStorage.setItem(REVOCATION_KEY, newIdentityMarker());
 }
 export function acknowledgeRevocation(marker: string) {
   // An acknowledgement identifies exactly one request. It never removes a new
@@ -36,7 +42,7 @@ export function acknowledgeRevocation(marker: string) {
   notifySession();
 }
 export function beginSession(): string {
-  const epoch = crypto.randomUUID();
+  const epoch = newIdentityMarker();
   localStorage.setItem(EPOCH_KEY, epoch);
   localStorage.removeItem(TOKEN_RECORD_KEY);
   localStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -60,12 +66,12 @@ export function storeSessionToken(epoch: string, token: string) {
   window.dispatchEvent(new CustomEvent('websec:token', {detail: token}));
 }
 
+export class SessionEnvironmentError extends Error {}
+export function requireCookieLock() {
+  if (!navigator.locks) throw new SessionEnvironmentError('Para entrar com segurança, use um navegador atualizado e acesse por HTTPS (ou localhost).');
+}
 export async function withCookieLock<T>(operation: () => Promise<T>): Promise<T> {
-  // Web Locks coordinate cookie mutations across browser tabs. The fallback
-  // serializes callers in one window; durable epochs still fence other tabs.
-  if (navigator.locks) return await navigator.locks.request('websec-auth-cookie', operation);
-  const shared = window as Window & {websecAuthCookieQueue?: Promise<unknown>};
-  const result = (shared.websecAuthCookieQueue ?? Promise.resolve()).then(operation, operation);
-  shared.websecAuthCookieQueue = result.then(() => undefined, () => undefined);
-  return result;
+  // A per-window queue cannot protect the shared HttpOnly cookie across tabs.
+  requireCookieLock();
+  return await navigator.locks.request('websec-auth-cookie', operation);
 }

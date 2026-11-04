@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import AuthLayout from "../components/AuthLayout";
+import {SessionEnvironmentError} from '../services/sessionState';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,8 +35,8 @@ export default function LoginPage() {
     try {
       await login(email.trim(), password);
       navigate("/");
-    } catch {
-      setError("Credenciais inválidas.");
+    } catch (error) {
+      setError(error instanceof SessionEnvironmentError ? error.message : "Credenciais inválidas.");
     } finally {
       setLoading(false);
     }

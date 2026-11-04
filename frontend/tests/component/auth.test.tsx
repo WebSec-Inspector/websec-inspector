@@ -15,6 +15,18 @@ beforeEach(() => { http = new MockAdapter(api, { onNoMatch: "throwException" });
 afterEach(() => http.restore());
 
 describe("Autenticação — componentes reais, transporte HTTP simulado", () => {
+  test('explains unsupported secure session coordination instead of reporting invalid credentials', async()=>{
+    const locks=navigator.locks;
+    Object.defineProperty(navigator,'locks',{configurable:true,value:undefined});
+    try {
+      renderPage(<LoginPage />, '/test');
+      fireEvent.change(screen.getByLabelText(/E-mail/),{target:{value:'qa@example.invalid'}});
+      fireEvent.change(screen.getByLabelText(/^Senha/),{target:{value:'password'}});
+      fireEvent.click(screen.getByRole('button',{name:/Entrar/}));
+      expect(await screen.findByRole('alert')).toHaveTextContent(/HTTPS/);
+      expect(http.history.post).toHaveLength(0);
+    } finally {Object.defineProperty(navigator,'locks',{configurable:true,value:locks});}
+  });
   test("AUTH-UI-01: bloqueia acesso direto sem token", async () => {
     renderPage(<ProtectedRoute><DashboardPage /></ProtectedRoute>, "/test");
     expect(await screen.findByRole("heading", { name: "Login de teste" })).toBeInTheDocument();
