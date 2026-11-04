@@ -10,7 +10,7 @@ class MigrationManifestTests(unittest.TestCase):
     def test_manifest_is_ordered_and_rejects_edited_history(self):
         from worker.schema_migrations import migration_manifest, validate_history
         manifest = migration_manifest()
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [item.version for item in manifest])
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [item.version for item in manifest])
         validate_history(manifest, [(m.version, m.checksum) for m in manifest])
         with self.assertRaisesRegex(RuntimeError, "checksum"):
             validate_history(manifest, [(1, "edited")])
