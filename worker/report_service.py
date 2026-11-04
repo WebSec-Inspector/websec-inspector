@@ -35,6 +35,8 @@ def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, me
     styles['Normal'].leading = 13
     styles['Normal'].wordWrap = 'CJK'
     styles['Heading2'].spaceBefore = 14
+    styles['Heading2'].keepWithNext = True
+    styles['Heading3'].keepWithNext = True
 
     def paragraph(value, style='Normal'):
         text = escape(str(value if value is not None else 'Não informado'))
@@ -58,7 +60,7 @@ def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, me
     duration = f'{max(0,int((finish-start).total_seconds()))} segundos' if start and finish else 'Não disponível'
     story += [field('Duração',duration),paragraph('Resumo', 'Heading2'),field('Total de achados',len(findings))]
     counts = Counter(f.get('severity','INFORMATIONAL') for f in findings)
-    data = [[paragraph('Severidade'),paragraph('Quantidade')]]
+    data = [[paragraph('Risco ZAP'),paragraph('Quantidade')]]
     for severity in ('CRITICAL','HIGH','MEDIUM','LOW','INFORMATIONAL'):
         data.append([paragraph(severity),paragraph(counts[severity])])
     summary=Table(data,colWidths=[330,145],repeatRows=1,hAlign='LEFT')
@@ -68,12 +70,22 @@ def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, me
     story += [Spacer(1,10),summary,paragraph('Metodologia e limites', 'Heading2'),
               paragraph('Análise automatizada com OWASP ZAP. Os achados são indícios técnicos e precisam de validação humana. '
                         'A ausência de achados não garante ausência de vulnerabilidades. O score apresentado é aproximado, '
-                        'derivado da classificação de risco; não é um cálculo CVSS validado. Evidências podem conter dados sensíveis.')]
+                        'derivado da classificação de risco; não é um cálculo CVSS validado. Quando houver avaliação CVSS, '
+                        'ela identifica versão, vetor e justificativa do avaliador. Evidências podem conter dados sensíveis.')]
     if not findings:
         story.append(paragraph('A varredura foi concluída sem achados registrados.'))
     for index, finding in enumerate(findings,1):
         story += [paragraph(f'{index}. {finding.get("title") or finding.get("owasp_category") or "Achado"}','Heading2')]
-        for label, key_name in [('Categoria OWASP','owasp_category'),('Severidade','severity'),
+        if finding.get('cvss_version')=='4.0' and finding.get('cvss_vector'):
+            story += [paragraph('CVSS 4.0 Base','Heading3'),
+                field('Pontuação CVSS-B',finding.get('cvss_base_score')),
+                field('Gravidade CVSS',finding.get('cvss_severity')),
+                field('Vetor CVSS',finding.get('cvss_vector')),
+                field('Justificativa da avaliação',finding.get('cvss_justification')),
+                field('Avaliado em (UTC)',moment(finding.get('cvss_assessed_at')))]
+        else:
+            story.append(paragraph('CVSS ainda não avaliado; o risco ZAP abaixo não determina métricas CVSS.'))
+        for label, key_name in [('Categoria OWASP','owasp_category'),('Risco ZAP','severity'),
              ('Score aproximado (não CVSS)','cvss_score'),('Confiança','confidence'),
              ('URL afetada','affected_url'),('Parâmetro','affected_parameter'),('CWE','cwe_id'),('WASC','wasc_id')]:
             story.append(field(label,finding.get(key_name)))

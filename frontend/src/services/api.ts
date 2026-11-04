@@ -41,7 +41,7 @@ export interface Finding {
   description: string;
   cvssScore: number;
   severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | "INFORMATIONAL";
-  recommendation: string;
+  recommendation: string | null;
   title: string;
   confidence: string | null;
   affectedUrl: string | null;
