@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, expect, test, vi} from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
+import axios from 'axios';
 
 const adapters: MockAdapter[]=[];
 const deferred = <T>() => {let resolve!: (v:T)=>void;const promise=new Promise<T>(r=>{resolve=r;});return {resolve,promise};};
@@ -38,12 +39,32 @@ test.each([403,409,503])('a renewed request preserves its actual %i error and th
   expect(localStorage.getItem('websec_token')).toBe('renewed');expect(a.http.history.post).toHaveLength(3);
 });
 
+test('cancellation of a renewed request is preserved without discarding the renewed token',async()=>{
+  const a=await tab();a.http.onPost('/auth/refresh').reply(200,{token:'renewed'});
+  a.http.onGet('/private').replyOnce(401,{}).onGet('/private').reply(()=>Promise.reject(new axios.CanceledError('cancelled')));
+  const failure=await a.api.get('/private').catch(e=>e);
+  expect(axios.isCancel(failure)).toBe(true);expect(localStorage.getItem('websec_token')).toBe('renewed');
+});
+
+test('request identity is captured synchronously before another tab begins login',async()=>{
+  const a=await tab();const b=await tab();const delayed=deferred<[number,object]>();
+  a.http.onPost('/domains').reply(config=>{expect(config.headers?.Authorization).toBe('Bearer alice');return delayed.promise;});
+  b.http.onPost('/auth/logout').reply(204,{});b.http.onPost('/auth/login').reply(200,{token:'bob'});
+  const mutation=a.api.post('/domains',{}).catch(e=>e);
+  await b.login('bob@example.invalid','password');delayed.resolve([401,{}]);
+  expect((await mutation).response.status).toBe(401);expect(a.http.history.post).toHaveLength(1);
+});
+
 test.each(['offline','503'])('pending remote logout survives %s and reload and must finish before another login',async(failure)=>{
   const a=await tab();
   if(failure==='offline') a.http.onPost('/auth/logout').networkError();else a.http.onPost('/auth/logout').reply(503,{});
   await Promise.resolve(a.logout()).catch(()=>undefined);
   await vi.waitFor(()=>expect(a.http.history.post).toHaveLength(1));
   const reloaded=await tab();
+  reloaded.http.onGet('/private').reply(401,{});
+  await expect(reloaded.api.get('/private')).rejects.toMatchObject({response:{status:401}});
+  await expect(reloaded.api.post('/auth/refresh',{})).rejects.toBeTruthy();
+  expect(reloaded.http.history.post).toHaveLength(0);
   reloaded.http.onPost('/auth/logout').reply(503,{});reloaded.http.onPost('/auth/login').reply(200,{token:'bob'});
   await expect(reloaded.login('bob@example.invalid','password')).rejects.toBeTruthy();
   expect(reloaded.http.history.post.map(p=>p.url)).toEqual(['/auth/logout']);

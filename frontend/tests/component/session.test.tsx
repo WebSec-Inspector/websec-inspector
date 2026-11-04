@@ -47,7 +47,9 @@ test('a retried 401 expires the session without a refresh loop; auth endpoints n
     http.onPost(`/auth/${endpoint}`).reply(401,{});
     await expect(api.post(`/auth/${endpoint}`)).rejects.toBeTruthy();
   }
-  expect(http.history.post).toHaveLength(5);
+  // Pending revocation blocks login/register/refresh locally; logout remains
+  // callable. None of these endpoints can recursively refresh.
+  expect(http.history.post).toHaveLength(2);
 });
 
 test('logout clears locally immediately, fences late refresh and revokes after its response', async () => {
@@ -74,6 +76,7 @@ test('403 retains session and refresh failure clears it', async () => {
 });
 
 test('logout waits for a pending login response so its late cookie is revoked', async () => {
+  localStorage.removeItem('websec_token');
   const response=defer<[number,object]>();
   http.onPost('/auth/login').reply(()=>response.promise);
   http.onPost('/auth/logout').reply(204,{});
@@ -85,4 +88,26 @@ test('logout waits for a pending login response so its late cookie is revoked', 
   response.resolve([200,{token:'late-login'}]);await attempt;
   await vi.waitFor(()=>expect(http.history.post.map(p=>p.url)).toEqual(['/auth/login','/auth/logout']));
   expect(localStorage.getItem('websec_token')).toBeNull();
+});
+
+test('AuthContext updates on storage events from another tab',async()=>{
+  render(<AuthProvider><Session /></AuthProvider>);
+  act(()=>{localStorage.setItem('websec_token','another-tab');window.dispatchEvent(new StorageEvent('storage',{key:'websec_token'}));});
+  expect(screen.getByText('another-tab')).toBeInTheDocument();
+  act(()=>{localStorage.removeItem('websec_token');window.dispatchEvent(new StorageEvent('storage',{key:'websec_token'}));});
+  expect(screen.getByText('signed out')).toBeInTheDocument();
+});
+
+test('local logout shows durable pending server revocation and offers retry after a failure',async()=>{
+  http.onPost('/auth/logout').reply(503,{});
+  const view=render(<AuthProvider><Session /></AuthProvider>);fireEvent.click(screen.getByText('Logout'));
+  expect(screen.getByText('signed out')).toBeInTheDocument();
+  expect(await screen.findByText(/revogação no servidor.*pendente/i)).toBeInTheDocument();
+  await vi.waitFor(()=>expect(http.history.post).toHaveLength(1));
+  view.unmount();render(<AuthProvider><Session /></AuthProvider>);
+  expect(screen.getByText(/revogação no servidor.*pendente/i)).toBeInTheDocument();
+  http.onPost('/auth/logout').reply(204,{});
+  fireEvent.click(screen.getByRole('button',{name:/Tentar revogar sessão/i}));
+  await vi.waitFor(()=>expect(screen.queryByText(/revogação no servidor.*pendente/i)).not.toBeInTheDocument());
+  expect(http.history.post).toHaveLength(2);expect(localStorage.getItem('websec_token')).toBeNull();
 });
