@@ -77,6 +77,11 @@ def validate_schema(cur):
         'email_failure_code':'character varying','email_recipient':'character varying'})
     not_null['reports'].update({'email_status','email_attempt_count'})
     required['findings'].update({'zap_rule_id':'character varying','http_method':'character varying'})
+    for table in ('finding_cvss_assessments','finding_cvss_history'):
+        required[table]={'id':'bigint','finding_id':'bigint','version':'character varying','vector':'character varying',
+            'base_score':'double precision','severity':'character varying','justification':'text','assessed_by':'bigint',
+            'assessed_at':'timestamp with time zone','revision':'bigint'}
+        not_null[table]=set(required[table])
     not_null['domains'].add('is_active')
     required['scans'].update({'attempt_count':'integer','worker_token':'uuid',
         'lease_until':'timestamp with time zone','heartbeat_at':'timestamp with time zone',
@@ -123,6 +128,9 @@ def validate_schema(cur):
         ('users', 'manager_id', 'users'), ('domains', 'user_id', 'users'),
         ('scans', 'domain_id', 'domains'), ('findings', 'scan_id', 'scans'), ('reports', 'scan_id', 'scans'),
         ('verification_challenges','user_id','users'),('verification_challenges','domain_id','domains')]}
+    needed |= {(table,'f',(column,),target,('id',)) for table in ('finding_cvss_assessments','finding_cvss_history')
+        for column,target in [('finding_id','findings'),('assessed_by','users')]}
+    needed |= {('finding_cvss_assessments','u',('finding_id',),None,()),('finding_cvss_history','u',('finding_id','revision'),None,())}
     if not needed.issubset(constraints):
         raise RuntimeError('Incompatible schema constraint: missing primary/unique/foreign key')
 

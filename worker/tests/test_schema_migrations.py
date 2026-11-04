@@ -47,6 +47,7 @@ class SchemaMigrationTests(unittest.TestCase):
     def legacy(self, role="USER"):
         self.migrate()
         with self.conn.cursor() as cur:
+            cur.execute("DROP TABLE finding_cvss_history, finding_cvss_assessments")
             cur.execute("DROP TABLE verification_challenges")
             cur.execute("DROP TABLE websec_schema_history")
             cur.execute("ALTER TABLE domains DROP COLUMN IF EXISTS is_active")
