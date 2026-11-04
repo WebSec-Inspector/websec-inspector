@@ -48,6 +48,7 @@ class CvssAssessmentPostgresTest {
     @Autowired ObjectMapper json;
     @Autowired UserRepository users;
     @Autowired PasswordEncoder passwords;
+    @org.springframework.boot.test.mock.mockito.SpyBean AccessControlService access;
     private final List<Long> ids=new ArrayList<>();
     private User owner(User.Role role, User manager){
         User u=new User();u.setEmail(UUID.randomUUID()+"@example.invalid");u.setName("Report test");
@@ -99,7 +100,7 @@ class CvssAssessmentPostgresTest {
             assertEquals(entry.getValue(),json.readTree(response).get("score").asDouble(),.0001);
             assertEquals("4.0",json.readTree(response).get("version").asText());
         }
-        for(String bad:List.of(VECTOR.replace("/SA:N",""),VECTOR+"/AV:N",VECTOR+"/E:A",VECTOR.replace("AV:N","AV:X"),VECTOR.replace("4.0","3.1")))
+        for(String bad:List.of(VECTOR.replace("/SA:N",""),VECTOR+"/AV:N",VECTOR+"/E:A",VECTOR.replace("AV:N","AV:X"),VECTOR.replace("4.0","3.1"),VECTOR.replace("AV:N/AC:L","AC:L/AV:N")))
             http.perform(post(route).header("Authorization",auth).contentType(MediaType.APPLICATION_JSON).content(body(bad,0))).andExpect(status().isBadRequest());
     }
     @Test void scoped_manual_assessment_is_audited_and_invalidates_pdf_without_overwriting_zap_score()throws Exception{
@@ -134,6 +135,31 @@ class CvssAssessmentPostgresTest {
         http.perform(put("/api/findings/"+id+"/cvss").header("Authorization",login(manager)).contentType(MediaType.APPLICATION_JSON).content(body(VECTOR,0))).andExpect(status().isOk());
         assertEquals("NOT_REQUESTED",jdbc.queryForObject("SELECT email_status FROM reports WHERE scan_id=?",String.class,scan));
         assertNull(jdbc.queryForObject("SELECT email_worker_token FROM reports WHERE scan_id=?",String.class,scan));
+    }
+
+    @Test void manager_revoked_while_waiting_for_scan_lock_cannot_save()throws Exception{
+        User manager=owner(User.Role.GERENTE,null),u=owner(User.Role.CLIENTE,manager),replacement=owner(User.Role.GERENTE,null);
+        long id=finding(u),scan=jdbc.queryForObject("SELECT scan_id FROM findings WHERE id=?",Long.class,id);
+        String auth=login(manager);CountDownLatch checked=new CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(invocation->{invocation.callRealMethod();checked.countDown();return null;})
+            .when(access).requireManagerOrAdministrator(org.mockito.ArgumentMatchers.any(User.class));
+        ExecutorService pool=Executors.newSingleThreadExecutor();
+        try(var lock=java.sql.DriverManager.getConnection(System.getenv("TEST_POSTGRES_JDBC"),"websec_test","test-only")){
+            lock.setAutoCommit(false);
+            try(var statement=lock.prepareStatement("SELECT id FROM scans WHERE id=? FOR UPDATE")){
+                statement.setLong(1,scan);statement.executeQuery();
+            }
+            Future<Integer> response=pool.submit(()->http.perform(put("/api/findings/"+id+"/cvss").header("Authorization",auth)
+                .contentType(MediaType.APPLICATION_JSON).content(body(VECTOR,0))).andReturn().getResponse().getStatus());
+            assertTrue(checked.await(5,TimeUnit.SECONDS));
+            jdbc.update("UPDATE users SET manager_id=? WHERE id=?",replacement.getId(),u.getId());
+            lock.commit();
+            assertEquals(404,response.get(10,TimeUnit.SECONDS));
+            assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM finding_cvss_history WHERE finding_id=?",Integer.class,id));
+        }finally{
+            jdbc.update("UPDATE users SET manager_id=? WHERE id=?",manager.getId(),u.getId());
+            org.mockito.Mockito.reset(access);pool.shutdownNow();
+        }
     }
 
 }

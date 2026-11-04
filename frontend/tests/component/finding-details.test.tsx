@@ -29,3 +29,9 @@ test('severity filter distinguishes informational findings from an empty filter 
   fireEvent.change(screen.getByLabelText('Filtrar risco ZAP'),{target:{value:'CRITICAL'}});
   expect(screen.getByText('Nenhum achado corresponde a este filtro.')).toBeInTheDocument();
 });
+
+test('legacy nullable recommendation does not crash results',()=>{
+  render(<ScanFindings findings={[{...finding,recommendation:null} as unknown as Finding]}/>);
+  expect(screen.getByRole('button',{name:'Detalhes de Cabeçalho'})).toBeInTheDocument();
+  expect(screen.getByText(/Sem recomendação registrada/)).toBeInTheDocument();
+});
