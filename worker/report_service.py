@@ -61,7 +61,7 @@ def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, me
     duration = f'{max(0,int((finish-start).total_seconds()))} segundos' if start and finish else 'Não disponível'
     story += [field('Duração',duration),paragraph('Resumo', 'Heading2'),field('Total de achados',len(findings))]
     counts = Counter(f.get('severity','INFORMATIONAL') for f in findings)
-    data = [[paragraph('Severidade'),paragraph('Quantidade')]]
+    data = [[paragraph('Risco ZAP'),paragraph('Quantidade')]]
     for severity in ('CRITICAL','HIGH','MEDIUM','LOW','INFORMATIONAL'):
         data.append([paragraph(severity),paragraph(counts[severity])])
     summary=Table(data,colWidths=[330,145],repeatRows=1,hAlign='LEFT')
@@ -86,7 +86,7 @@ def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, me
                 field('Avaliado em (UTC)',moment(finding.get('cvss_assessed_at')))]
         else:
             story.append(paragraph('CVSS ainda não avaliado; o risco ZAP abaixo não determina métricas CVSS.'))
-        for label, key_name in [('Categoria OWASP','owasp_category'),('Severidade','severity'),
+        for label, key_name in [('Categoria OWASP','owasp_category'),('Risco ZAP','severity'),
              ('Score aproximado (não CVSS)','cvss_score'),('Confiança','confidence'),
              ('URL afetada','affected_url'),('Parâmetro','affected_parameter'),('CWE','cwe_id'),('WASC','wasc_id')]:
             story.append(field(label,finding.get(key_name)))

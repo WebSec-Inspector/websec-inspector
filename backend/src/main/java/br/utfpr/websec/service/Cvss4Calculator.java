@@ -23,7 +23,7 @@ public class Cvss4Calculator {
         Map<String,String> metrics=new HashMap<>();
         for(int i=1;i<segments.length;i++) {
             String[] pair=segments[i].split(":",-1);
-            if(pair.length!=2 || !VALUES.containsKey(pair[0]) || !VALUES.get(pair[0]).contains(pair[1])
+            if(pair.length!=2 || !ORDER.get(i-1).equals(pair[0]) || !VALUES.containsKey(pair[0]) || !VALUES.get(pair[0]).contains(pair[1])
                 || metrics.putIfAbsent(pair[0],pair[1])!=null)throw invalid();
         }
         if(metrics.size()!=ORDER.size())throw invalid();

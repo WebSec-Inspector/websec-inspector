@@ -16,10 +16,11 @@ export default function ScanFindings({findings,onAssessmentSaved}:{findings:Find
 }
 function Card({finding:f,onAssessmentSaved}:{finding:Finding;onAssessmentSaved?:()=>void}){
   const [expanded,setExpanded]=useState(false);const title=f.title||f.owaspCategory;
+  const recommendation=f.recommendation??'Sem recomendação registrada';
   return <li className="rounded-xl border border-white/10 bg-panel p-4">
     <div className="mb-2 flex items-start justify-between gap-3"><h3 className="break-words font-medium">{title}</h3><span className="shrink-0 text-xs">Risco ZAP <SeverityBadge severity={f.severity}/></span></div>
     <p className="mb-2 break-words text-sm text-slate-300">{f.description.length>240?f.description.slice(0,240)+'…':f.description}</p>
-    <p className="mb-3 text-xs text-slate-400">Score aproximado ZAP: {f.cvssScore.toFixed(1)} — {f.recommendation.length>180?f.recommendation.slice(0,180)+'…':f.recommendation}</p>
+    <p className="mb-3 text-xs text-slate-400">Score aproximado ZAP: {f.cvssScore.toFixed(1)} — {recommendation.length>180?recommendation.slice(0,180)+'…':recommendation}</p>
     <button type="button" aria-label={`Detalhes de ${title}`} aria-expanded={expanded} aria-controls={`finding-details-${f.id}`} onClick={()=>setExpanded(v=>!v)} className="rounded border border-white/20 px-3 py-1.5 text-sm text-accent">{expanded?'Recolher detalhes':'Detalhes, evidências e CVSS'}</button>
     {expanded && <div id={`finding-details-${f.id}`} className="mt-4">
       <dl className="space-y-2 text-xs text-slate-400">{[['URL afetada',f.affectedUrl],['Parâmetro',f.affectedParameter],['Categoria OWASP',f.owaspCategory],['CWE',f.cweId],['WASC',f.wascId],['Confiança',f.confidence]].map(([label,value])=><div key={label}><dt className="font-medium text-slate-300">{label}</dt><dd className="break-all">{value||'Não informado'}</dd></div>)}</dl>
