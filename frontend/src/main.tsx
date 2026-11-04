@@ -12,6 +12,7 @@ import SubmitScanPage from "./pages/SubmitScanPage";
 import ScanReportPage from "./pages/ScanReportPage";
 import VerificationTokenPage from "./pages/VerificationTokenPage";
 import MyDomainsPage from "./pages/MyDomainsPage";
+import ScanListPage from "./pages/ScanListPage";
 import ScanComparisonPage from "./pages/ScanComparisonPage";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -38,6 +39,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               </ProtectedRoute>
             }
           />
+          <Route path="/varreduras" element={<ProtectedRoute><ScanListPage /></ProtectedRoute>} />
           <Route path="/dominios" element={<ProtectedRoute><MyDomainsPage /></ProtectedRoute>} />
           <Route path="/comparar" element={<ProtectedRoute><ScanComparisonPage /></ProtectedRoute>} />
           <Route path="/verificacao/token" element={<ProtectedRoute><VerificationTokenPage /></ProtectedRoute>} />
