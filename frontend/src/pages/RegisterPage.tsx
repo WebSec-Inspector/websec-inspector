@@ -3,12 +3,14 @@ import { isAxiosError } from "axios";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import AuthLayout from "../components/AuthLayout";
+import {SessionEnvironmentError} from '../services/sessionState';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type FieldName = "name" | "email" | "password" | "confirmation";
 type FieldErrors = Partial<Record<FieldName, string>>;
 
 function registrationError(error: unknown): string {
+  if (error instanceof SessionEnvironmentError) return error.message;
   if (isAxiosError(error)) {
     const status = error.response?.status;
     const body = error.response?.data;

@@ -2,7 +2,7 @@ import axios, {InternalAxiosRequestConfig} from "axios";
 import { invalidResponseError } from "../lib/apiError";
 import { isKnownStatus, ScanStatus } from "../lib/scanStatus";
 import {currentEpoch, pendingRevocation, sessionSnapshot, markRevocation,
-  acknowledgeRevocation, beginSession, sessionChangedError, storeSessionToken, withCookieLock} from './sessionState';
+  acknowledgeRevocation, beginSession, sessionChangedError, storeSessionToken, withCookieLock, requireCookieLock} from './sessionState';
 export {TOKEN_STORAGE_KEY, sessionSnapshot} from './sessionState';
 
 /** Timeout explícito: sem ele uma requisição pendurada deixa a tela em loading para sempre. */
@@ -39,6 +39,24 @@ export function retryPendingRevocation(): Promise<void> {
   return withCookieLock(revokeInsideLock);
 }
 
+async function acceptSessionResponse(epoch: string, data: {token?: unknown} | null) {
+  // A successful HTTP response has already installed its HttpOnly cookie.
+  // If another tab superseded it, revoke that cookie before releasing the lock.
+  if (epoch !== currentEpoch() || pendingRevocation() || typeof data?.token !== 'string' || !data.token) {
+    markRevocation();
+    await revokeInsideLock();
+    if (epoch !== currentEpoch()) throw sessionChangedError();
+    throw invalidResponseError('token de sessão ausente ou sessão alterada');
+  }
+  try { storeSessionToken(epoch, data.token); }
+  catch (error) {
+    markRevocation();
+    await revokeInsideLock();
+    throw error;
+  }
+  return data.token;
+}
+
 function refreshAccess(epoch: string, sentToken: string | null | undefined): Promise<string> {
   if (!refreshing) {
     refreshing = withCookieLock(async () => {
@@ -47,9 +65,7 @@ function refreshAccess(epoch: string, sentToken: string | null | undefined): Pro
       if (current.epoch !== epoch || !current.token || current.logoutPending) throw sessionChangedError();
       if (current.token !== sentToken) return current.token;
       const {data} = await api.post('/auth/refresh', {});
-      if (typeof data?.token !== "string" || !data.token) throw invalidResponseError("token de sessão ausente");
-      storeSessionToken(epoch, data.token);
-      return data.token as string;
+      return await acceptSessionResponse(epoch, data);
     }).finally(() => { refreshing = null; });
   }
   return refreshing;
@@ -206,6 +222,7 @@ function parseDomainCreate(data: unknown): DomainCreateResponse {
 }
 
 async function authenticate(path: string, body: object): Promise<{token: string}> {
+  requireCookieLock();
   if (sessionSnapshot().token) markRevocation();
   const epoch = beginSession();
   return withCookieLock(async () => {
@@ -213,8 +230,7 @@ async function authenticate(path: string, body: object): Promise<{token: string}
     await revokeInsideLock();
     if (epoch !== currentEpoch() || pendingRevocation()) throw sessionChangedError();
     const {data} = await api.post(path, body);
-    if (typeof data?.token !== 'string' || !data.token) throw invalidResponseError("token de sessão ausente");
-    storeSessionToken(epoch, data.token);
+    await acceptSessionResponse(epoch, data);
     return data as {token: string};
   });
 }
