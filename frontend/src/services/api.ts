@@ -1,11 +1,12 @@
 import axios, {InternalAxiosRequestConfig} from "axios";
 import { invalidResponseError } from "../lib/apiError";
 import { isKnownStatus, ScanStatus } from "../lib/scanStatus";
+import {currentEpoch, pendingRevocation, sessionSnapshot, markRevocation,
+  acknowledgeRevocation, beginSession, sessionChangedError, storeSessionToken, withCookieLock} from './sessionState';
+export {TOKEN_STORAGE_KEY, sessionSnapshot} from './sessionState';
 
 /** Timeout explícito: sem ele uma requisição pendurada deixa a tela em loading para sempre. */
 const REQUEST_TIMEOUT_MS = 20_000;
-
-export const TOKEN_STORAGE_KEY = "websec_token";
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:8080/api",
@@ -50,56 +51,59 @@ function parseAdminUser(data: unknown): AdminUserRecord {
 }
 
 type SessionRequest = InternalAxiosRequestConfig & {
-  sessionGeneration?: number;
+  sessionEpoch?: string;
   sentToken?: string | null;
   sessionRetried?: boolean;
 };
-let sessionGeneration = 0;
 let refreshing: Promise<string> | null = null;
-let signingOut: Promise<void> | null = null;
-let authenticating: Promise<{token: string}> | null = null;
 const isAuthRequest = (url = "") => /(?:^|\/)auth\/(?:login|register|refresh|logout)(?:[?#]|$)/.test(url);
 
-export function clearSession() {
-  sessionGeneration++;
-  localStorage.removeItem(TOKEN_STORAGE_KEY);
-  window.dispatchEvent(new Event("websec:unauthorized"));
+export function clearSession(revoke = true) {
+  if (revoke) markRevocation();
+  beginSession();
 }
 
-function storeToken(token: string) {
-  localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  window.dispatchEvent(new CustomEvent("websec:token", {detail: token}));
+async function revokeInsideLock() {
+  const marker = pendingRevocation();
+  if (!marker) return;
+  try { await api.post('/auth/logout', {}); }
+  catch { throw new Error('Você saiu deste navegador. Revogação no servidor pendente; conecte-se e tente novamente.'); }
+  acknowledgeRevocation(marker);
 }
 
-function refreshAccess(): Promise<string> {
+export function retryPendingRevocation(): Promise<void> {
+  return withCookieLock(revokeInsideLock);
+}
+
+function refreshAccess(epoch: string, sentToken: string | null | undefined): Promise<string> {
   if (!refreshing) {
-    const generation = sessionGeneration;
-    refreshing = api.post("/auth/refresh", {}).then(({data}) => {
-      if (generation !== sessionGeneration) throw new Error("Sessão encerrada.");
+    refreshing = withCookieLock(async () => {
+      await revokeInsideLock();
+      const current = sessionSnapshot();
+      if (current.epoch !== epoch || !current.token || current.logoutPending) throw sessionChangedError();
+      if (current.token !== sentToken) return current.token;
+      const {data} = await api.post('/auth/refresh', {});
       if (typeof data?.token !== "string" || !data.token) throw invalidResponseError("token de sessão ausente");
-      storeToken(data.token);
+      storeSessionToken(epoch, data.token);
       return data.token as string;
     }).finally(() => { refreshing = null; });
   }
   return refreshing;
 }
 
-export function logout(): void {
+export function logout(): Promise<void> {
   clearSession();
-  if (signingOut) return;
-  // The browser applies Set-Cookie before resolving refresh. Revoke afterwards
-  // so a late response cannot leave a live descendant cookie after logout.
-  const pending = [refreshing, authenticating];
-  signingOut = (async () => {
-    await Promise.allSettled(pending);
-    try { await api.post("/auth/logout", {}); } catch { /* local logout is immediate */ }
-  })().finally(() => { signingOut = null; });
+  return retryPendingRevocation();
 }
 
 api.interceptors.request.use((config) => {
   const request = config as SessionRequest;
-  request.sessionGeneration ??= sessionGeneration;
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  const current = sessionSnapshot();
+  request.sessionEpoch ??= current.epoch;
+  if (request.sessionEpoch !== current.epoch) throw sessionChangedError();
+  if (current.logoutPending && isAuthRequest(request.url) && !request.url?.includes('/auth/logout'))
+    throw new Error('Revogação da sessão anterior pendente. Tente sair novamente antes de entrar.');
+  const token = current.token;
   request.sentToken = token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -107,7 +111,7 @@ api.interceptors.request.use((config) => {
     config.headers.delete("Authorization");
   }
   return config;
-});
+}, (error) => { throw error; }, {synchronous: true});
 
 api.interceptors.response.use(
   (res) => res,
@@ -115,20 +119,23 @@ api.interceptors.response.use(
     const request = err.config as SessionRequest | undefined;
     if (err.response?.status !== 401 || !request || isAuthRequest(request.url)) throw err;
     // A response from a previous login/logout cannot expire the current session.
-    if (request.sessionGeneration !== sessionGeneration) throw err;
-    if (request.sessionRetried || !localStorage.getItem(TOKEN_STORAGE_KEY)) {
-      clearSession(); throw err;
+    if (request.sessionEpoch !== currentEpoch()) throw err;
+    if (request.sessionRetried) { clearSession(); throw err; }
+    if (!sessionSnapshot().token) {
+      throw err;
     }
     request.sessionRetried = true;
     try {
       // A delayed 401 may refer to the token already replaced by another request.
-      if (request.sentToken === localStorage.getItem(TOKEN_STORAGE_KEY)) await refreshAccess();
-      if (request.sessionGeneration !== sessionGeneration) throw err;
-      return await api.request(request);
-    } catch {
-      if (request.sessionGeneration === sessionGeneration) clearSession();
+      if (request.sentToken === sessionSnapshot().token) await refreshAccess(request.sessionEpoch!, request.sentToken);
+    } catch (failure) {
+      if (request.sessionEpoch === currentEpoch()) clearSession(!(axios.isAxiosError(failure) && failure.response?.status === 401));
       throw err;
     }
+    if (request.sessionEpoch !== currentEpoch()) throw err;
+    // Retry failures retain their status/body/cancellation and do not clear a
+    // valid renewed session. Only a genuine renewed 401 expires it above.
+    return api.request(request);
   },
 );
 
@@ -238,23 +245,17 @@ function parseDomainCreate(data: unknown): DomainCreateResponse {
 }
 
 async function authenticate(path: string, body: object): Promise<{token: string}> {
-  // Serialize cookie-changing operations, including a previous login. A fenced
-  // response still sets the browser cookie; it must finish before the next auth.
-  const previous = [signingOut, refreshing, authenticating];
-  clearSession();
-  const generation = sessionGeneration;
-  const pending = (async () => {
-    await Promise.allSettled(previous);
-    if (generation !== sessionGeneration) throw new Error("Sessão encerrada.");
+  if (sessionSnapshot().token) markRevocation();
+  const epoch = beginSession();
+  return withCookieLock(async () => {
+    if (epoch !== currentEpoch()) throw sessionChangedError();
+    await revokeInsideLock();
+    if (epoch !== currentEpoch() || pendingRevocation()) throw sessionChangedError();
     const {data} = await api.post(path, body);
-    if (generation !== sessionGeneration) throw new Error("Sessão encerrada.");
     if (typeof data?.token !== 'string' || !data.token) throw invalidResponseError("token de sessão ausente");
-    storeToken(data.token);
+    storeSessionToken(epoch, data.token);
     return data as {token: string};
-  })();
-  authenticating = pending;
-  try { return await pending; }
-  finally { if (authenticating === pending) authenticating = null; }
+  });
 }
 
 export function login(email: string, password: string) {

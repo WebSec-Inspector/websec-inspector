@@ -20,11 +20,14 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final RefreshSessionService sessions;
+    private final RegistrationTransactionService registrations;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, RefreshSessionService sessions) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, RefreshSessionService sessions,
+                       RegistrationTransactionService registrations) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.sessions = sessions;
+        this.registrations = registrations;
     }
 
     public RefreshSessionService.Session register(RegisterRequest request) {
@@ -38,7 +41,7 @@ public class AuthService {
         // O cadastro público sempre cria CLIENTE; o cliente nunca escolhe seu próprio perfil.
         user.setRole(User.Role.CLIENTE);
         try {
-            userRepository.saveAndFlush(user);
+            return registrations.create(user);
         } catch (DataIntegrityViolationException ex) {
             // The repository transaction has rolled back. A competing registration
             // may have inserted this email after the initial existence check.
@@ -47,7 +50,6 @@ public class AuthService {
             }
             throw ex;
         }
-        return sessions.start(user);
     }
 
     public RefreshSessionService.Session login(LoginRequest request) {

@@ -195,6 +195,12 @@ sem wildcard nem caminho. Mantenha frontend e API no mesmo site para o cookie
 Strict; em produção o proxy usa `/api` na mesma origem. O cliente usa credenciais
 nas chamadas e renova automaticamente uma vez ao receber 401.
 
+Logout remove o acesso local imediatamente. Se a revogação remota falhar,
+um aviso persistente oferece nova tentativa; login/cadastro aguardam revogar a
+sessão anterior antes de enviar credenciais. A pendência sobrevive à recarga e
+impede renovação automática. Alterações de identidade em outra aba também
+invalidam requisições antigas antes de qualquer retry.
+
 Após migração 012, não remova hashes consumidos de famílias ainda válidas: eles
 detectam replay. Manutenção pode excluir famílias expiradas (`expires_at < now()`);
 as linhas de refresh são removidas por cascade. Não registre cookies/tokens/hashes.
