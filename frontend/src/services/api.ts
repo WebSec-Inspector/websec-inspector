@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, {InternalAxiosRequestConfig} from "axios";
 import { invalidResponseError } from "../lib/apiError";
 import { isKnownStatus, ScanStatus } from "../lib/scanStatus";
 
@@ -10,6 +10,7 @@ export const TOKEN_STORAGE_KEY = "websec_token";
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:8080/api",
   timeout: REQUEST_TIMEOUT_MS,
+  withCredentials: true,
 });
 
 export type UserRole = "CLIENTE" | "GERENTE" | "ADMINISTRADOR";
@@ -48,26 +49,84 @@ function parseAdminUser(data: unknown): AdminUserRecord {
   return { ...profile, managerId: raw.managerId as number | null };
 }
 
+type SessionRequest = InternalAxiosRequestConfig & {
+  sessionGeneration?: number;
+  sentToken?: string | null;
+  sessionRetried?: boolean;
+};
+let sessionGeneration = 0;
+let refreshing: Promise<string> | null = null;
+let signingOut: Promise<void> | null = null;
+const isAuthRequest = (url = "") => /(?:^|\/)auth\/(?:login|register|refresh|logout)(?:[?#]|$)/.test(url);
+
+export function clearSession() {
+  sessionGeneration++;
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+  window.dispatchEvent(new Event("websec:unauthorized"));
+}
+
+function storeToken(token: string) {
+  localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  window.dispatchEvent(new CustomEvent("websec:token", {detail: token}));
+}
+
+function refreshAccess(): Promise<string> {
+  if (!refreshing) {
+    const generation = sessionGeneration;
+    refreshing = api.post("/auth/refresh", {}).then(({data}) => {
+      if (generation !== sessionGeneration) throw new Error("Sessão encerrada.");
+      if (typeof data?.token !== "string" || !data.token) throw invalidResponseError("token de sessão ausente");
+      storeToken(data.token);
+      return data.token as string;
+    }).finally(() => { refreshing = null; });
+  }
+  return refreshing;
+}
+
+export function logout(): void {
+  clearSession();
+  // The browser applies Set-Cookie before resolving refresh. Revoke afterwards
+  // so a late response cannot leave a live descendant cookie after logout.
+  const pending = refreshing;
+  signingOut = (async () => {
+    try { await pending; } catch { /* revoked/expired/locally fenced */ }
+    try { await api.post("/auth/logout", {}); } catch { /* local logout is immediate */ }
+  })().finally(() => { signingOut = null; });
+}
+
 api.interceptors.request.use((config) => {
+  const request = config as SessionRequest;
+  request.sessionGeneration ??= sessionGeneration;
   const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  request.sentToken = token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    config.headers.delete("Authorization");
   }
   return config;
 });
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    // Só 401 derruba a sessão: 403 significa autenticado porém sem permissão,
-    // e limpar o token nesse caso desloga o usuário por engano (vindo da main).
-    if (err.response?.status === 401) {
-      localStorage.removeItem(TOKEN_STORAGE_KEY);
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("websec:unauthorized"));
-      }
+  async (err) => {
+    const request = err.config as SessionRequest | undefined;
+    if (err.response?.status !== 401 || !request || isAuthRequest(request.url)) throw err;
+    // A response from a previous login/logout cannot expire the current session.
+    if (request.sessionGeneration !== sessionGeneration) throw err;
+    if (request.sessionRetried || !localStorage.getItem(TOKEN_STORAGE_KEY)) {
+      clearSession(); throw err;
     }
-    return Promise.reject(err);
+    request.sessionRetried = true;
+    try {
+      // A delayed 401 may refer to the token already replaced by another request.
+      if (request.sentToken === localStorage.getItem(TOKEN_STORAGE_KEY)) await refreshAccess();
+      if (request.sessionGeneration !== sessionGeneration) throw err;
+      return await api.request(request);
+    } catch {
+      if (request.sessionGeneration === sessionGeneration) clearSession();
+      throw err;
+    }
   },
 );
 
@@ -177,12 +236,26 @@ function parseDomainCreate(data: unknown): DomainCreateResponse {
 }
 
 export async function login(email: string, password: string) {
+  await signingOut;
+  clearSession();
+  const generation=sessionGeneration;
+  try { await refreshing; } catch { /* previous session is fenced */ }
+  if(generation!==sessionGeneration) throw new Error("Sessão encerrada.");
   const { data } = await api.post("/auth/login", { email, password });
+  if(generation!==sessionGeneration) throw new Error("Sessão encerrada.");
+  storeToken(data.token);
   return data as { token: string };
 }
 
 export async function register(name: string, email: string, password: string) {
+  await signingOut;
+  clearSession();
+  const generation=sessionGeneration;
+  try { await refreshing; } catch { /* previous session is fenced */ }
+  if(generation!==sessionGeneration) throw new Error("Sessão encerrada.");
   const { data } = await api.post("/auth/register", { name, email, password });
+  if(generation!==sessionGeneration) throw new Error("Sessão encerrada.");
+  storeToken(data.token);
   return data as { token: string };
 }
 

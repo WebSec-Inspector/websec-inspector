@@ -179,6 +179,26 @@ A aplicação frontend conversa com a API. A API grava os dados no PostgreSQL e 
 
 ## Documentação
 
+### Sessão e cookies
+
+Login/cadastro mantêm a resposta `{token}` e emitem refresh rotativo em cookie
+HttpOnly, SameSite=Strict, Path=/api/auth. Novos access JWT duram15 minutos;
+refresh expira sete dias após o login, mesmo com rotações. Logout/replay revogam
+a família de refresh; access JWT já emitido permanece válido até seu `exp`.
+Tokens antigos mantêm sua expiração original. Consulte [o contrato de sessão](docs/session.md).
+
+Produção HTTPS usa `WEBSEC_REFRESH_COOKIE_SECURE=true` (padrão). Para HTTP local,
+defina explicitamente `WEBSEC_REFRESH_COOKIE_SECURE=false` no ambiente do backend
+ou no `.env` do Docker Compose. CORS com credenciais aceita origens explícitas
+separadas por vírgula via `WEBSEC_CORS_ORIGINS` (padrão `http://localhost:5173`),
+sem wildcard nem caminho. Mantenha frontend e API no mesmo site para o cookie
+Strict; em produção o proxy usa `/api` na mesma origem. O cliente usa credenciais
+nas chamadas e renova automaticamente uma vez ao receber401.
+
+Após migração012, não remova hashes consumidos de famílias ainda válidas: eles
+detectam replay. Manutenção pode excluir famílias expiradas (`expires_at < now()`);
+as linhas de refresh são removidas por cascade. Não registre cookies/tokens/hashes.
+
 - [`docs/aws-cloud.md`](docs/aws-cloud.md) — hospedagem atual na AWS, acesso público, CI/CD e operação.
 - [`docs/oracle-cloud.md`](docs/oracle-cloud.md) — alternativa de infraestrutura Oracle, pendente de capacidade A1.
 - [`docs/arquitetura.md`](docs/arquitetura.md) — arquitetura, fluxo e decisões técnicas.

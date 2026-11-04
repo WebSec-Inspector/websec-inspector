@@ -8,7 +8,6 @@ import br.utfpr.websec.exception.ResourceNotFoundException;
 import br.utfpr.websec.exception.EmailAlreadyRegisteredException;
 import br.utfpr.websec.model.User;
 import br.utfpr.websec.repository.UserRepository;
-import br.utfpr.websec.security.JwtService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,15 +19,15 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
+    private final RefreshSessionService sessions;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, RefreshSessionService sessions) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.jwtService = jwtService;
+        this.sessions = sessions;
     }
 
-    public AuthResponse register(RegisterRequest request) {
+    public RefreshSessionService.Session register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new EmailAlreadyRegisteredException();
         }
@@ -48,16 +47,16 @@ public class AuthService {
             }
             throw ex;
         }
-        return new AuthResponse(jwtService.generateToken(user.getEmail()));
+        return sessions.start(user);
     }
 
-    public AuthResponse login(LoginRequest request) {
+    public RefreshSessionService.Session login(LoginRequest request) {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BadCredentialsException("Credenciais inválidas"));
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException("Credenciais inválidas");
         }
-        return new AuthResponse(jwtService.generateToken(user.getEmail()));
+        return sessions.start(user);
     }
 
     @Transactional(readOnly = true)

@@ -24,8 +24,11 @@ websec:
     email-enabled: ${WEBSEC_REPORTS_EMAIL_ENABLED:false}
   jwt:
     secret: ${JWT_SECRET:troque-este-segredo-em-producao-troque-este-segredo}
-    expiration-ms: 86400000
+    expiration-ms: ${JWT_EXPIRATION_MS:900000}
+  refresh:
+    cookie-secure: ${WEBSEC_REFRESH_COOKIE_SECURE:true}
   security:
+    cors-origins: ${WEBSEC_CORS_ORIGINS:http://localhost:5173}
     dev-bypass-enabled: ${WEBSEC_DEV_BYPASS_ENABLED:false}
 
 server:
