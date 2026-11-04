@@ -29,7 +29,7 @@ it("validates registration and disables submission while the request is pending"
   await act(async () => { view = create(<MemoryRouter><RegisterPage /></MemoryRouter>); });
   await act(async () => { await view.root.findByType("form").props.onSubmit({ preventDefault() {} }); });
   expect(auth.register).not.toHaveBeenCalled();
-  for (const [id, value] of [["register-name", " Ana "], ["register-email", " ana@example.com "], ["register-password", "12345678"]]) {
+  for (const [id, value] of [["register-name", " Ana "], ["register-email", " ana@example.com "], ["register-password", "12345678"], ["register-confirmation", "12345678"]]) {
     await act(async () => { view.root.findByProps({ id }).props.onChange({ target: { value } }); });
   }
   let resolve;

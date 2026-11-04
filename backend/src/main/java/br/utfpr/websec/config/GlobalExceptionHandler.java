@@ -1,6 +1,7 @@
 package br.utfpr.websec.config;
 
 import br.utfpr.websec.exception.DomainNotVerifiedException;
+import br.utfpr.websec.exception.EmailAlreadyRegisteredException;
 import br.utfpr.websec.exception.ResourceNotFoundException;
 import br.utfpr.websec.exception.ExistingDomainTokenException;
 import br.utfpr.websec.exception.ScanStateChangedException;
@@ -18,6 +19,12 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(EmailAlreadyRegisteredException.class)
+    public ResponseEntity<Map<String, String>> handleEmailAlreadyRegistered(EmailAlreadyRegisteredException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", ex.getMessage(), "code", "EMAIL_ALREADY_REGISTERED"));
+    }
+
     @ExceptionHandler(ScanStateChangedException.class)
     public ResponseEntity<Map<String,String>> handleStateChanged(ScanStateChangedException ex){
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error",ex.getMessage(),"code","SCAN_STATE_CHANGED","status",ex.getStatus()));

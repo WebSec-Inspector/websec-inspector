@@ -60,6 +60,7 @@ describe("Autenticação — componentes reais, transporte HTTP simulado", () =>
     fireEvent.change(screen.getByLabelText(/Nome/), { target: { value: "QA" } });
     fireEvent.change(screen.getByLabelText(/E-mail/), { target: { value: "qa@example.invalid" } });
     fireEvent.change(screen.getByLabelText(/^Senha/), { target: { value: "test-password" } });
+    fireEvent.change(screen.getByLabelText(/Confirmar senha/), { target: { value: "test-password" } });
     fireEvent.click(screen.getByRole("button", { name: /Cadastrar/ }));
     expect(await screen.findByRole("heading", { name: "Painel de teste" })).toBeInTheDocument();
     expect(localStorage.getItem("websec_token")).toBe("registered-token");
