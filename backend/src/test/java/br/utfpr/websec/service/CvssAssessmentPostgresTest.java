@@ -127,4 +127,13 @@ class CvssAssessmentPostgresTest {
         jdbc.update("UPDATE scans SET deleted_at=now() WHERE id=?",scan);
         http.perform(get(route).header("Authorization",login(manager))).andExpect(status().isNotFound());
     }
+    @Test void rescore_invalidates_a_claimed_email_before_its_smtp_visibility_check()throws Exception{
+        User manager=owner(User.Role.GERENTE,null),u=owner(User.Role.CLIENTE,manager);long id=finding(u);
+        long scan=jdbc.queryForObject("SELECT scan_id FROM findings WHERE id=?",Long.class,id);
+        jdbc.update("INSERT INTO reports(scan_id,pdf_url,status,email_status,email_worker_token,email_lease_until) VALUES (?,'old.pdf','READY','SENDING',?::uuid,now()+interval '10 minutes')",scan,UUID.randomUUID().toString());
+        http.perform(put("/api/findings/"+id+"/cvss").header("Authorization",login(manager)).contentType(MediaType.APPLICATION_JSON).content(body(VECTOR,0))).andExpect(status().isOk());
+        assertEquals("NOT_REQUESTED",jdbc.queryForObject("SELECT email_status FROM reports WHERE scan_id=?",String.class,scan));
+        assertNull(jdbc.queryForObject("SELECT email_worker_token FROM reports WHERE scan_id=?",String.class,scan));
+    }
+
 }
