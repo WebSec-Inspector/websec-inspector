@@ -4,8 +4,11 @@ import br.utfpr.websec.dto.AdminUserResponse;
 import br.utfpr.websec.exception.ResourceNotFoundException;
 import br.utfpr.websec.model.User;
 import br.utfpr.websec.repository.UserRepository;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 public class UserAdministrationService {
@@ -16,6 +19,15 @@ public class UserAdministrationService {
     public UserAdministrationService(UserRepository userRepository, AccessControlService accessControlService) {
         this.userRepository = userRepository;
         this.accessControlService = accessControlService;
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminUserResponse> listUsers(String actorEmail) {
+        User actor = getUserByEmail(actorEmail);
+        accessControlService.requireAdministrator(actor);
+        return userRepository.findAll(Sort.by(Sort.Direction.ASC, "name")).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional

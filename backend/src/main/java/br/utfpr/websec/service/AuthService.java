@@ -1,14 +1,17 @@
 package br.utfpr.websec.service;
 
 import br.utfpr.websec.dto.AuthResponse;
+import br.utfpr.websec.dto.CurrentUserResponse;
 import br.utfpr.websec.dto.LoginRequest;
 import br.utfpr.websec.dto.RegisterRequest;
+import br.utfpr.websec.exception.ResourceNotFoundException;
 import br.utfpr.websec.model.User;
 import br.utfpr.websec.repository.UserRepository;
 import br.utfpr.websec.security.JwtService;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {
@@ -44,5 +47,12 @@ public class AuthService {
             throw new BadCredentialsException("Credenciais inválidas");
         }
         return new AuthResponse(jwtService.generateToken(user.getEmail()));
+    }
+
+    @Transactional(readOnly = true)
+    public CurrentUserResponse currentUser(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário autenticado não encontrado"));
+        return new CurrentUserResponse(user.getId(), user.getName(), user.getEmail(), user.getRole());
     }
 }

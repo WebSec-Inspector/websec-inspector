@@ -11,6 +11,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/admin/users")
 @PreAuthorize("hasRole('ADMINISTRADOR')")
@@ -21,6 +23,11 @@ public class UserAdministrationController {
 
     public UserAdministrationController(UserAdministrationService userAdministrationService) {
         this.userAdministrationService = userAdministrationService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<AdminUserResponse>> list(Authentication auth) {
+        return ResponseEntity.ok(userAdministrationService.listUsers(auth.getName()));
     }
 
     @PutMapping("/{userId}/role")

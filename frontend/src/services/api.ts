@@ -12,6 +12,42 @@ export const api = axios.create({
   timeout: REQUEST_TIMEOUT_MS,
 });
 
+export type UserRole = "CLIENTE" | "GERENTE" | "ADMINISTRADOR";
+
+export interface CurrentUserProfile {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface AdminUserRecord extends CurrentUserProfile {
+  managerId: number | null;
+}
+
+function parseUserRole(value: unknown): UserRole {
+  if (value === "CLIENTE" || value === "GERENTE" || value === "ADMINISTRADOR") return value;
+  throw invalidResponseError("perfil de usuário desconhecido");
+}
+
+function parseCurrentUser(data: unknown): CurrentUserProfile {
+  if (!data || typeof data !== "object") throw invalidResponseError("perfil do usuário inválido");
+  const raw = data as Record<string, unknown>;
+  if (typeof raw.id !== "number" || typeof raw.name !== "string" || typeof raw.email !== "string") {
+    throw invalidResponseError("campos do perfil do usuário ausentes");
+  }
+  return { id: raw.id, name: raw.name, email: raw.email, role: parseUserRole(raw.role) };
+}
+
+function parseAdminUser(data: unknown): AdminUserRecord {
+  const profile = parseCurrentUser(data);
+  const raw = data as Record<string, unknown>;
+  if (raw.managerId !== null && typeof raw.managerId !== "number") {
+    throw invalidResponseError("campo managerId inválido");
+  }
+  return { ...profile, managerId: raw.managerId as number | null };
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_STORAGE_KEY);
   if (token) {
@@ -145,6 +181,16 @@ export async function login(email: string, password: string) {
 export async function register(name: string, email: string, password: string) {
   const { data } = await api.post("/auth/register", { name, email, password });
   return data as { token: string };
+}
+
+export async function getCurrentUser() {
+  return parseCurrentUser((await api.get("/users/me")).data);
+}
+
+export async function getAdminUsers() {
+  const { data } = await api.get("/admin/users");
+  if (!Array.isArray(data)) throw invalidResponseError("lista de usuários não é um array");
+  return data.map(parseAdminUser);
 }
 
 export async function submitScan(url: string, verificationChallengeId?: string) {
