@@ -7,6 +7,7 @@ import LoginPage from "../../src/pages/LoginPage";
 import RegisterPage from "../../src/pages/RegisterPage";
 import DashboardPage from "../../src/pages/DashboardPage";
 import ProtectedRoute from "../../src/components/ProtectedRoute";
+import AppShell from "../../src/components/AppShell";
 import { renderPage } from "../helpers";
 
 let http: MockAdapter;
@@ -67,8 +68,9 @@ describe("Autenticação — componentes reais, transporte HTTP simulado", () =>
 
   test("AUTH-UI-07: logout remove credenciais e bloqueia painel", async () => {
     localStorage.setItem("websec_token", "qa-token");
-    renderPage(<ProtectedRoute><DashboardPage /></ProtectedRoute>, "/test");
-    fireEvent.click(screen.getByRole("button", { name: "Sair" }));
+    renderPage(<ProtectedRoute><AppShell><DashboardPage /></AppShell></ProtectedRoute>, "/test");
+    fireEvent.click(screen.getByRole("button", { name: "Minha conta" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sair" }));
     expect(await screen.findByRole("heading", { name: "Login de teste" })).toBeInTheDocument();
     expect(localStorage.getItem("websec_token")).toBeNull();
   });

@@ -112,7 +112,7 @@ function LatestScanCard({ scan }: { scan: ScanResponse }) {
         <div className="latest-scan-card__meta">
           <span><img src={calendarIcon} alt="" aria-hidden="true" />{formatDate(scan.createdAt)}</span>
           <span><img src={timerIcon} alt="" aria-hidden="true" />{formatDuration(scan.createdAt, scan.finishedAt)}</span>
-          <Link className="button button--primary" to={"/scans/" + scan.id}>
+          <Link className="button button--primary" aria-label={"Varredura #" + scan.id + ": ver relatório"} to={"/scans/" + scan.id}>
             Ver relatório <img src={arrowRightIcon} alt="" aria-hidden="true" />
           </Link>
         </div>
@@ -200,7 +200,7 @@ function Message({
   onRetry?: () => void;
 }) {
   return (
-    <section className="empty-state">
+    <section className="empty-state" role={onRetry ? "alert" : undefined}>
       <span className="empty-state__icon"><img src={shieldIcon} alt="" aria-hidden="true" /></span>
       <h2>{title}</h2>
       <p>{message}</p>
@@ -296,7 +296,7 @@ export default function DashboardPage() {
             <FindingsCard scan={latest!} />
             <AnalysisDetails scan={latest!} />
           </div>
-          {domains.length > 1 && <p className="dashboard-scope">Histórico de {activeDomain?.hostname || "domínio selecionado"}</p>}
+          {activeDomain && <p className="dashboard-scope">Histórico de {activeDomain.hostname}</p>}
         </>
       )}
     </section>
