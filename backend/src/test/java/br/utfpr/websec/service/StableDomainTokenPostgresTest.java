@@ -164,7 +164,7 @@ class StableDomainTokenPostgresTest {
         assertEquals("VERIFICATION_PENDING", json.readTree(pending).get("code").asText());
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM scans WHERE domain_id=?", Integer.class, domainId));
 
-        jdbc.update("INSERT INTO scans(domain_id,status,created_at) VALUES (?, 'COMPLETED', now())", domainId);
+        jdbc.update("INSERT INTO scans(domain_id,status,created_at,target_url) VALUES (?, 'COMPLETED', now(), 'https://example.invalid')", domainId);
         http.perform(delete("/api/domains/" + domainId).header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
         assertFalse(domains.findById(domainId).orElseThrow().isActive());

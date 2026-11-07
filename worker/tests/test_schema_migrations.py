@@ -10,7 +10,7 @@ class MigrationManifestTests(unittest.TestCase):
     def test_manifest_is_ordered_and_rejects_edited_history(self):
         from worker.schema_migrations import migration_manifest, validate_history
         manifest = migration_manifest()
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [item.version for item in manifest])
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [item.version for item in manifest])
         validate_history(manifest, [(m.version, m.checksum) for m in manifest])
         with self.assertRaisesRegex(RuntimeError, "checksum"):
             validate_history(manifest, [(1, "edited")])
@@ -50,6 +50,8 @@ class SchemaMigrationTests(unittest.TestCase):
             cur.execute("DROP TABLE verification_challenges")
             cur.execute("DROP TABLE websec_schema_history")
             cur.execute("ALTER TABLE domains DROP COLUMN IF EXISTS is_active")
+            # Bancos legados não possuem as colunas de URL criadas pela migration 011.
+            cur.execute("ALTER TABLE scans DROP COLUMN target_url, DROP COLUMN submitted_url")
             cur.execute("ALTER TABLE users DROP CONSTRAINT users_role_check")
             cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('legacy@example.invalid','same-hash','Legacy',%s,now())", (role,))
             cur.execute("ALTER TABLE findings DROP CONSTRAINT findings_severity_check")
@@ -81,7 +83,7 @@ class SchemaMigrationTests(unittest.TestCase):
             cur.execute("INSERT INTO reports(scan_id,pdf_url,sent_at) VALUES (1,'/data/reports/scan-1.pdf',now()) RETURNING id,scan_id,pdf_url,sent_at")
             original=cur.fetchone()
         self.conn.commit()
-        self.assertEqual([8,9,10],self.migrate())
+        self.assertEqual([8,9,10,11],self.migrate())
         with self.conn.cursor() as cur:
             cur.execute('SELECT id,scan_id,pdf_url,sent_at FROM reports')
             self.assertEqual(original,cur.fetchone())
@@ -93,11 +95,11 @@ class SchemaMigrationTests(unittest.TestCase):
             self.assertEqual(('same-hash',),cur.fetchone())
 
     def test_empty_database_bootstraps_and_repeat_is_noop(self):
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], self.migrate())
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], self.migrate())
         self.assertEqual([], self.migrate())
         with self.conn.cursor() as cur:
             cur.execute("SELECT count(*) FROM websec_schema_history")
-            self.assertEqual(10, cur.fetchone()[0])
+            self.assertEqual(11, cur.fetchone()[0])
             cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('new@example.invalid','hash','New','CLIENTE',now())")
             cur.execute("INSERT INTO domains(user_id,hostname,verification_token) VALUES (1,'new.example.invalid','new-token') RETURNING is_active")
             self.assertTrue(cur.fetchone()[0])
@@ -106,10 +108,13 @@ class SchemaMigrationTests(unittest.TestCase):
         self.legacy()
         with self.assertRaisesRegex(RuntimeError, "adopt"):
             self.migrate()
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], self.migrate(adopt_legacy=True))
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], self.migrate(adopt_legacy=True))
         with self.conn.cursor() as cur:
             cur.execute("SELECT password_hash,role FROM users")
             self.assertEqual([('same-hash', 'CLIENTE')], cur.fetchall())
+            # O scan legado recebe o alvo inferido; o texto original nunca foi registrado.
+            cur.execute("SELECT target_url,submitted_url FROM scans")
+            self.assertEqual([('https://example.invalid', None)], cur.fetchall())
             cur.execute("SELECT verification_token FROM domains")
             self.assertEqual('published-token', cur.fetchone()[0])
             cur.execute("SELECT is_active FROM domains")

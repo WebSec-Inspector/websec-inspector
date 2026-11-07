@@ -20,7 +20,7 @@ class ScanJobTests(unittest.TestCase):
         with self.conn.cursor() as cur:
             cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('job@example.invalid','hash','Job','CLIENTE',now())")
             cur.execute("INSERT INTO domains(user_id,hostname,verification_token) VALUES (1,'example.invalid','token')")
-            cur.execute("INSERT INTO scans(domain_id,status,created_at) VALUES (1,'QUEUED',now())")
+            cur.execute("INSERT INTO scans(domain_id,status,created_at,target_url) VALUES (1,'QUEUED',now(),'https://example.invalid')")
         self.conn.commit()
 
     def tearDown(self):
