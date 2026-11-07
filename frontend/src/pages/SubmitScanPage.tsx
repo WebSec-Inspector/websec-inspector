@@ -157,8 +157,8 @@ export default function SubmitScanPage() {
 
     setSubmitting(true);
     try {
-      const normalized = normalizeUrl(url);
-      const scan = await submitScan(normalized,challenge?.id);
+      // A URL vai como foi digitada: o backend normaliza e guarda também o texto original.
+      const scan = await submitScan(url.trim(),challenge?.id);
       setScanId(scan.id);
       setHostname(scan.hostname);
       setToken(scan.verificationToken ?? "");

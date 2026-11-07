@@ -25,7 +25,7 @@ class EmailJobsTests(unittest.TestCase):
             with self.conn.cursor() as cur:
                 cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('second@example.invalid','hash','Second','CLIENTE',now())")
                 cur.execute("INSERT INTO domains(user_id,hostname,verification_token) VALUES (2,'second.invalid','second-token')")
-                cur.execute("INSERT INTO scans(domain_id,status,created_at) VALUES (2,'COMPLETED',now())")
+                cur.execute("INSERT INTO scans(domain_id,status,created_at,target_url) VALUES (2,'COMPLETED',now(),'https://second.invalid')")
                 cur.execute("INSERT INTO reports(scan_id,pdf_url,status,email_status) VALUES (2,'second.pdf','READY','PENDING')")
             self.conn.commit();(Path(folder)/'second.pdf').write_bytes(b'%PDF-1.4\nsecond')
             with patch('worker.email_jobs.send_pdf') as send:

@@ -527,6 +527,12 @@
   font-weight: 600;
 }
 
+.latest-scan-card__target {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
 .latest-scan-card__meta {
   display: flex;
   flex-wrap: wrap;
