@@ -20,6 +20,14 @@ public class Scan {
     @Column(length = 120)
     private String name;
 
+    /** URL normalizada que o worker executa; nunca é reconstruída a partir do hostname. */
+    @Column(name = "target_url", nullable = false, length = 2048)
+    private String targetUrl;
+
+    /** Texto exatamente como enviado pelo usuário, mantido para auditoria. */
+    @Column(name = "submitted_url", length = 2048)
+    private String submittedUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.PENDING_VERIFICATION;
@@ -49,6 +57,10 @@ public class Scan {
     public Long getId() { return id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public String getTargetUrl() { return targetUrl; }
+    public void setTargetUrl(String targetUrl) { this.targetUrl = targetUrl; }
+    public String getSubmittedUrl() { return submittedUrl; }
+    public void setSubmittedUrl(String submittedUrl) { this.submittedUrl = submittedUrl; }
     public Instant getDeletedAt() { return deletedAt; }
     public void setDeletedAt(Instant deletedAt) { this.deletedAt = deletedAt; }
     public boolean isDeleted() { return deletedAt != null; }
