@@ -31,6 +31,22 @@ class ScanJobTests(unittest.TestCase):
         self.conn.commit()
         self.conn.close()
 
+    def test_worker_target_is_the_persisted_url_not_the_hostname(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        import scan_worker
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE scans SET target_url='http://example.invalid:8080/loja/login?x=1' WHERE id=1")
+        self.conn.commit()
+        self.assertEqual('http://example.invalid:8080/loja/login?x=1', scan_worker.fetch_scan_target(self.conn, 1))
+        # Scan excluído logicamente continua sem alvo executável.
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE scans SET deleted_at=now() WHERE id=1")
+        self.conn.commit()
+        with self.assertRaises(ValueError):
+            scan_worker.fetch_scan_target(self.conn, 1)
+
     def test_queued_scan_is_claimed_without_any_redis_notification(self):
         from worker.scan_jobs import claim_next, complete
         claim = claim_next(self.conn)

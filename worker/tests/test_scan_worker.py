@@ -8,10 +8,12 @@ import scan_worker as worker
 from scan_jobs import Claim
 
 class ScanWorkerTests(unittest.TestCase):
+    TARGET = 'http://qa.example.invalid:8080/loja/login?x=1'
+
     def setUp(self):
         self.conn = MagicMock()
         self.claim = Claim(42,'attempt-token',1)
-        self.target = patch.object(worker,'fetch_scan_target',return_value='qa.example.invalid')
+        self.target = patch.object(worker,'fetch_scan_target',return_value=self.TARGET)
         self.target.start()
         self.addCleanup(self.target.stop)
 
@@ -31,6 +33,13 @@ class ScanWorkerTests(unittest.TestCase):
         findings=complete.call_args.args[2]
         self.assertEqual('CWE-16',findings[0]['owasp_category'])
         self.assertEqual(5.5,findings[0]['cvss_score'])
+
+    def test_zap_receives_persisted_url_with_port_path_and_query(self):
+        with patch.object(worker,'run_scan',return_value=[]) as scan, \
+             patch.object(worker,'complete'), patch.object(worker,'process_next_report'):
+            worker.process_scan(self.conn,self.claim)
+        # O alvo chega ao ZAP exatamente como foi gravado, sem ser remontado pelo hostname.
+        self.assertEqual(self.TARGET, scan.call_args.args[0])
 
     def test_scan_completion_does_not_run_reporting_inline(self):
         with patch.object(worker,'run_scan',return_value=[]), \
