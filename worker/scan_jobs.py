@@ -1,5 +1,6 @@
 """Durable scan claims. Redis notifications are hints; PostgreSQL owns state."""
 from dataclasses import dataclass
+import os
 import uuid
 
 try:
@@ -70,7 +71,8 @@ def complete(conn, claim, findings):
             write_findings(cur,claim.scan_id,findings)
             cur.execute("""UPDATE scans SET status='COMPLETED',finished_at=now(),
                 worker_token=NULL,lease_until=NULL,failure_code=NULL WHERE id=%s""", (claim.scan_id,))
-            cur.execute("INSERT INTO reports(scan_id,pdf_url,status) VALUES (%s,'','PENDING') ON CONFLICT (scan_id) DO NOTHING",(claim.scan_id,))
+            email_status='PENDING' if os.getenv('REPORT_EMAIL_ENABLED','false').lower()=='true' else 'NOT_REQUESTED'
+            cur.execute("INSERT INTO reports(scan_id,pdf_url,status,email_status) VALUES (%s,'','PENDING',%s) ON CONFLICT (scan_id) DO NOTHING",(claim.scan_id,email_status))
 
 
 def fail(conn, claim, code, retryable=True, max_attempts=3):
