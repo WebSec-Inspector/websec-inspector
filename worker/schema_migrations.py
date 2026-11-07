@@ -81,7 +81,8 @@ def validate_schema(cur):
     required['scans'].update({'attempt_count':'integer','worker_token':'uuid',
         'lease_until':'timestamp with time zone','heartbeat_at':'timestamp with time zone',
         'next_attempt_at':'timestamp with time zone','failure_code':'character varying'})
-    not_null['scans'].add('attempt_count')
+    required['scans'].update({'target_url':'character varying','submitted_url':'character varying'})
+    not_null['scans'].update({'attempt_count','target_url'})
     required['verification_challenges']={'id':'uuid','user_id':'bigint','token':'character varying',
         'domain_id':'bigint','created_at':'timestamp with time zone'}
     not_null['verification_challenges']={'id','user_id','token','created_at'}
@@ -93,7 +94,10 @@ def validate_schema(cur):
                 raise RuntimeError(f'Incompatible schema type: {table}.{column}')
             if column in not_null[table] and actual[column][1] != 'NO':
                 raise RuntimeError(f'Incompatible schema nullable column: {table}.{column}')
-            expected_length = 120 if table == 'scans' and column == 'name' else 64 if table == 'scans' and column == 'failure_code' else 255
+            expected_length = (120 if table == 'scans' and column == 'name'
+                               else 64 if table == 'scans' and column == 'failure_code'
+                               else 2048 if table == 'scans' and column in ('target_url', 'submitted_url')
+                               else 255)
             if kind == 'character varying' and actual[column][2] != expected_length:
                 raise RuntimeError(f'Incompatible schema length: {table}.{column}')
             if table == 'domains' and column == 'is_active' and actual[column][4] != 'true':
