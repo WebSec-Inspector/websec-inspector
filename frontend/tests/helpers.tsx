@@ -12,6 +12,7 @@ export const scan = {
   name: null,
   findingsCount: 0,
   hostname: "qa.example.invalid",
+  targetUrl: "https://qa.example.invalid",
   status: "QUEUED" as const,
   verificationToken: null,
   createdAt: "2026-10-21T12:00:00Z",

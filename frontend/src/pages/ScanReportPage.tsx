@@ -100,6 +100,7 @@ export default function ScanReportPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">{scan.hostname || "Varredura"}</h1>
+          {scan.targetUrl && <p className="break-all text-sm text-slate-300">Alvo: {scan.targetUrl}</p>}
           <p className="text-sm text-slate-400">Varredura #{scan.id} · {scan.findingsCount} resultados</p>
         </div>
         <ScanStatusBadge status={scan.status} pulsing={transient && polling} />

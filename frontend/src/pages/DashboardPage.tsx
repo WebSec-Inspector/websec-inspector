@@ -109,6 +109,7 @@ function LatestScanCard({ scan }: { scan: ScanResponse }) {
           <h2>{scan.hostname || "Domínio da varredura"}</h2>
           <ScanStatusBadge status={scan.status} />
         </div>
+        {scan.targetUrl && <p className="latest-scan-card__target">Alvo: {scan.targetUrl}</p>}
         <div className="latest-scan-card__meta">
           <span><img src={calendarIcon} alt="" aria-hidden="true" />{formatDate(scan.createdAt)}</span>
           <span><img src={timerIcon} alt="" aria-hidden="true" />{formatDuration(scan.createdAt, scan.finishedAt)}</span>

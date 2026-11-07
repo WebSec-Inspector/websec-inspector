@@ -94,6 +94,8 @@ export interface ScanResponse {
   /** Necessário para consultar o histórico sem recorrer a valor hardcoded. */
   domainId: number;
   hostname: string;
+  /** URL normalizada que o worker executa (preserva porta, caminho e query). */
+  targetUrl: string;
   name: string | null;
   status: ScanStatus;
   verificationToken: string | null;
@@ -141,6 +143,7 @@ function parseScan(data: unknown): ScanResponse {
     domainId: raw.domainId,
     name: typeof raw.name === "string" ? raw.name : null,
     hostname: typeof raw.hostname === "string" ? raw.hostname : "",
+    targetUrl: typeof raw.targetUrl === "string" ? raw.targetUrl : "",
     status: raw.status,
     verificationToken: typeof raw.verificationToken === "string" ? raw.verificationToken : null,
     createdAt: typeof raw.createdAt === "string" ? raw.createdAt : "",

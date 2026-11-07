@@ -13,7 +13,7 @@ beforeEach(() => { http = new MockAdapter(api, { onNoMatch: "throwException" });
 afterEach(() => { http.restore(); vi.useRealTimers(); });
 
 async function openVerification() {
-  http.onPost("/scans", { url: "https://qa.example.invalid/" }).reply(200, {
+  http.onPost("/scans", { url: "www.qa.example.invalid" }).reply(200, {
     ...scan, status: "PENDING_VERIFICATION", verificationToken: "websec-verify-qa",
   });
   renderPage(<SubmitScanPage />, "/test");
@@ -23,10 +23,12 @@ async function openVerification() {
 }
 
 describe("Scans — interface real e respostas HTTP controladas", () => {
+  // A normalização é responsabilidade do backend; o frontend envia o texto digitado.
   test.each([
-    ["https://WWW.WWW.QA.EXAMPLE.INVALID/path", "https://www.www.qa.example.invalid/path"],
-    ["https://WWW.QA.EXAMPLE.INVALID./path", "https://qa.example.invalid/path"],
-  ])("normalizacao preserva subdominio e chave estavel: %s", async (input, expected) => {
+    ["https://WWW.WWW.QA.EXAMPLE.INVALID/path", "https://WWW.WWW.QA.EXAMPLE.INVALID/path"],
+    ["https://WWW.QA.EXAMPLE.INVALID./path", "https://WWW.QA.EXAMPLE.INVALID./path"],
+    ["  http://qa.example.invalid:8080/Loja?x=1  ", "http://qa.example.invalid:8080/Loja?x=1"],
+  ])("envia a URL digitada sem normalizar: %s", async (input, expected) => {
     http.onPost("/scans").reply(200, {...scan,status:"PENDING_VERIFICATION",verificationToken:"stable-token"});
     renderPage(<SubmitScanPage />, "/test");
     fireEvent.change(screen.getByRole("textbox"), {target:{value:input}});
@@ -94,6 +96,13 @@ describe("Scans — interface real e respostas HTTP controladas", () => {
     renderPage(<div />, "/scans/42");
     expect(await screen.findByText("Cabeçalho ausente")).toBeInTheDocument();
     expect(screen.getByText(/CVSS 5.5/)).toHaveTextContent("Configurar cabeçalho");
+  });
+
+  test("SCAN-UI-08: relatório mostra o alvo executado com porta e caminho", async () => {
+    localStorage.setItem("websec_token", "qa-token");
+    http.onGet("/scans/42").reply(200, { ...scan, status: "COMPLETED", targetUrl: "http://qa.example.invalid:8080/loja?x=1" });
+    renderPage(<div />, "/scans/42");
+    expect(await screen.findByText("Alvo: http://qa.example.invalid:8080/loja?x=1")).toBeInTheDocument();
   });
 
   test("SCAN-UI-07: API envia Bearer token e 401 encerra sessão protegida", async () => {
