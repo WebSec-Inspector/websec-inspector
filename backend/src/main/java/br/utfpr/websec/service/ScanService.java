@@ -158,7 +158,7 @@ public class ScanService {
 
     private ScanResponse toStateResponse(Scan scan,ScanState state){
         Domain domain=scan.getDomain();List<FindingResponse> findings=loadFindings(scan.getId());
-        return new ScanResponse(scan.getId(),domain.getId(),domain.getHostname(),scan.getName(),state.status().name(),
+        return new ScanResponse(scan.getId(),domain.getId(),domain.getHostname(),scan.getTargetUrl(),scan.getName(),state.status().name(),
             state.status()==Scan.Status.PENDING_VERIFICATION?domain.getVerificationToken():null,
             scan.getCreatedAt(),state.finishedAt(),findings.size(),findings);
     }
@@ -267,6 +267,7 @@ public class ScanService {
                 scan.getId(),
                 domain.getId(),
                 domain.getHostname(),
+                scan.getTargetUrl(),
                 scan.getName(),
                 scan.getStatus().name(),
                 scan.getStatus() == Scan.Status.PENDING_VERIFICATION ? domain.getVerificationToken() : null,
