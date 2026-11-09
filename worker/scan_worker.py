@@ -35,19 +35,19 @@ def get_connection():
 def fetch_scan_target(conn, scan_id):
     with conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT d.hostname FROM scans s JOIN domains d ON d.id=s.domain_id WHERE s.id=%s AND s.deleted_at IS NULL",(scan_id,))
+            cur.execute("SELECT s.target_url,d.hostname FROM scans s JOIN domains d ON d.id=s.domain_id WHERE s.id=%s AND s.deleted_at IS NULL",(scan_id,))
             row = cur.fetchone()
             if row is None:
                 raise ValueError(f"Scan {scan_id} nao encontrado")
-            return row[0]
+            if row[0]:
+                return row[0]
+            return 'http://juice-shop:3000' if row[1] == 'juice-shop' else f'https://{row[1]}'
 
 
 def process_scan(conn, claim):
     log.info("Processing scan %s attempt %s",claim.scan_id,claim.attempt)
     try:
-        hostname = fetch_scan_target(conn,claim.scan_id)
-        # Original URL preservation is tracked separately in #28.
-        target = 'http://juice-shop:3000' if hostname == 'juice-shop' else f'https://{hostname}'
+        target = fetch_scan_target(conn,claim.scan_id)
         alerts = run_scan(target,lambda: heartbeat(conn,claim))
         findings = parse_zap_alerts(alerts)
         complete(conn,claim,findings)

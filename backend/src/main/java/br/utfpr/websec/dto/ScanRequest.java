@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public record ScanRequest(
         @NotBlank
+        @Size(max = 2048, message = "A URL deve ter no máximo 2048 caracteres")
         @Pattern(regexp = "^(https?://.+|[\\w-]+(\\.[\\w-]+)+.*)$", message = "URL invalida. Informe um hostname (ex.: example.com) ou URL completa (ex.: https://example.com)")
         String url,
         @Size(max = 120, message = "O nome do scan deve ter no máximo 120 caracteres")

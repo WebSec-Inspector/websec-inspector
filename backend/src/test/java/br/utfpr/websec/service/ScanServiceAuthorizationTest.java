@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Optional;
@@ -98,6 +99,28 @@ class ScanServiceAuthorizationTest {
         assertEquals("localhost", response.hostname());
         assertEquals("PENDING_VERIFICATION", response.status());
         verify(domains).findCanonicalDomains("localhost", client.getId());
+    }
+
+    @Test
+    void persisteUrlCompletaSemUsaLaComoIdentidadeDoDominio() {
+        when(domains.findCanonicalDomains("localhost", client.getId())).thenReturn(List.of());
+        service.submitUrl(client.getEmail(), new ScanRequest("http://localhost:8080/app/?mode=1", null, null));
+
+        ArgumentCaptor<Scan> saved = ArgumentCaptor.forClass(Scan.class);
+        verify(scans).save(saved.capture());
+        assertEquals("http://localhost:8080/app/?mode=1", saved.getValue().getTargetUrl());
+        assertEquals("localhost", saved.getValue().getDomain().getHostname());
+    }
+
+    @Test
+    void rejeitaCredenciaisEFragmentosNaUrlDoScan() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.submitUrl(client.getEmail(), new ScanRequest("http://user:pass@localhost/path", null, null)));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.submitUrl(client.getEmail(), new ScanRequest("http://localhost/path#section", null, null)));
+        assertThrows(IllegalArgumentException.class,
+            () -> service.submitUrl(client.getEmail(), new ScanRequest("http://localhost:65536/path", null, null)));
+        verify(scans, never()).save(any(Scan.class));
     }
 
     @Test

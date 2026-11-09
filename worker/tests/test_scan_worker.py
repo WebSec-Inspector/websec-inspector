@@ -11,7 +11,8 @@ class ScanWorkerTests(unittest.TestCase):
     def setUp(self):
         self.conn = MagicMock()
         self.claim = Claim(42,'attempt-token',1)
-        self.target = patch.object(worker,'fetch_scan_target',return_value='qa.example.invalid')
+        self.fetch_target = worker.fetch_scan_target
+        self.target = patch.object(worker,'fetch_scan_target',return_value='https://qa.example.invalid:8443/app/?x=1')
         self.target.start()
         self.addCleanup(self.target.stop)
 
@@ -24,13 +25,25 @@ class ScanWorkerTests(unittest.TestCase):
 
     def test_success_parses_alerts_and_completes_atomically(self):
         alerts=[{'alert':'Missing header','risk':'Medium','cweid':'16'}]
-        with patch.object(worker,'run_scan',return_value=alerts), \
+        with patch.object(worker,'run_scan',return_value=alerts) as run_scan, \
              patch.object(worker,'complete') as complete, \
              patch.object(worker,'process_next_report') as pdf:
             worker.process_scan(self.conn,self.claim)
+        run_scan.assert_called_once()
+        self.assertEqual('https://qa.example.invalid:8443/app/?x=1',run_scan.call_args.args[0])
         findings=complete.call_args.args[2]
         self.assertEqual('CWE-16',findings[0]['owasp_category'])
         self.assertEqual(5.5,findings[0]['cvss_score'])
+
+    def test_fetch_scan_target_prefers_persisted_url_and_falls_back_for_legacy_rows(self):
+        cursor=MagicMock()
+        connection=MagicMock()
+        connection.__enter__.return_value=connection
+        connection.cursor.return_value.__enter__.return_value=cursor
+        cursor.fetchone.return_value=('http://qa.example.invalid:8080/app?mode=1','qa.example.invalid')
+        self.assertEqual('http://qa.example.invalid:8080/app?mode=1',self.fetch_target(connection,42))
+        cursor.fetchone.return_value=(None,'legacy.example.invalid')
+        self.assertEqual('https://legacy.example.invalid',self.fetch_target(connection,42))
 
     def test_scan_completion_does_not_run_reporting_inline(self):
         with patch.object(worker,'run_scan',return_value=[]), \

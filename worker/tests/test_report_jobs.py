@@ -16,6 +16,17 @@ class ReportJobsTests(unittest.TestCase):
         from worker.scan_jobs import claim_next, complete
         complete(self.conn, claim_next(self.conn), [])
 
+    def test_pdf_metadata_uses_the_persisted_target_url(self):
+        self.completed()
+        target='http://example.invalid:8080/app?mode=1'
+        with self.conn.cursor() as cur:
+            cur.execute('UPDATE scans SET target_url=%s WHERE id=1',(target,))
+        self.conn.commit()
+        from worker.report_jobs import process_next_report
+        with patch('worker.report_jobs.generate_pdf_report',return_value='/tmp/report.pdf') as generate:
+            self.assertTrue(process_next_report(self.conn))
+        self.assertEqual(target,generate.call_args.kwargs['metadata']['target'])
+
     def test_completion_atomically_schedules_report_and_restart_can_claim_it(self):
         self.completed()
         with self.conn.cursor() as cur:

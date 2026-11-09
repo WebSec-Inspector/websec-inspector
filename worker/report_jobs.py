@@ -69,13 +69,12 @@ def process_next_report(conn):
         from psycopg2.extras import RealDictCursor
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("""SELECT d.hostname,s.status,s.started_at,s.finished_at
+                cur.execute("""SELECT d.hostname,s.status,s.started_at,s.finished_at,s.target_url
                     FROM scans s JOIN domains d ON d.id=s.domain_id WHERE s.id=%s""",(claim.scan_id,))
                 metadata=dict(cur.fetchone())
-                # This matches the scanner's current target construction. Original URL
-                # support remains tracked in #28; never pretend that URL was preserved.
                 hostname=metadata['hostname']
-                metadata['target']=('http://juice-shop:3000' if hostname=='juice-shop' else 'https://'+hostname) + ' (inferido; URL original não registrada)'
+                target_url=metadata.pop('target_url',None)
+                metadata['target']=target_url or ('http://juice-shop:3000' if hostname=='juice-shop' else 'https://'+hostname) + ' (inferido; URL original não registrada)'
                 cur.execute('SELECT * FROM findings WHERE scan_id=%s ORDER BY id',(claim.scan_id,))
                 findings=[dict(row) for row in cur.fetchall()]
         key=f'scan-{claim.scan_id}-{claim.token}.pdf'

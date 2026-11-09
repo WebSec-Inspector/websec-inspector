@@ -83,6 +83,7 @@ public class ScanService {
 
         Scan scan = new Scan();
         scan.setDomain(domain);
+        scan.setTargetUrl(url);
         scan.setName(request.name() == null || request.name().isBlank() ? null : request.name().trim());
         scan.setStatus(Scan.Status.PENDING_VERIFICATION);
         scanRepository.save(scan);
@@ -306,9 +307,24 @@ public class ScanService {
     }
 
     private String normalizeUrl(String input) {
+        if (input == null || input.isBlank()) {
+            throw new IllegalArgumentException("Informe uma URL HTTP ou HTTPS válida.");
+        }
         String url = input.trim();
         if (!url.matches("(?i)^https?://.*")) {
             url = "https://" + url;
+        }
+        URI parsed;
+        try {
+            parsed = URI.create(url);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Informe uma URL HTTP ou HTTPS válida.", ex);
+        }
+        String scheme = parsed.getScheme();
+        if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))
+            || parsed.getHost() == null || parsed.getPort() == 0 || parsed.getPort() > 65535
+            || parsed.getRawUserInfo() != null || parsed.getRawFragment() != null) {
+            throw new IllegalArgumentException("Informe uma URL HTTP ou HTTPS válida, sem credenciais ou fragmento.");
         }
         return url;
     }

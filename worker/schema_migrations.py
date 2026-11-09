@@ -51,6 +51,7 @@ def validate_schema(cur):
                     'verification_token': 'character varying', 'verified_at': 'timestamp with time zone',
                     'is_active': 'boolean'},
         'scans': {'id': 'bigint', 'domain_id': 'bigint', 'name': 'character varying', 'status': 'character varying',
+              'target_url': 'text',
                   'created_at': 'timestamp with time zone', 'started_at': 'timestamp with time zone',
                   'finished_at': 'timestamp with time zone', 'deleted_at': 'timestamp with time zone'},
         'findings': {'id': 'bigint', 'scan_id': 'bigint', 'owasp_category': 'character varying',

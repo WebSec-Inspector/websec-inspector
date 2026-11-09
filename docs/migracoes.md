@@ -2,6 +2,8 @@
 
 O serviço `migrate` executa os SQLs imutáveis de `worker/migrations`, usando o driver PostgreSQL já existente na imagem do worker. O histórico `websec_schema_history` registra versão e SHA-256. Um lock transacional serializa execuções. Bootstrap, upgrades e histórico usam uma única transação; falha reverte tudo. Novas mudanças exigem novo arquivo numerado, sem BEGIN/COMMIT e sem comandos incompatíveis com transação.
 
+A migração `011_scan_target_url.sql` adiciona `scans.target_url` como coluna nullable para armazenar o URL completo dos novos scans sem alterar registros antigos. Scans legados sem esse valor continuam usando o alvo inferido pelo comportamento anterior; novas execuções devem persistir esquema, porta, caminho e query validados.
+
 Foi escolhido esse executável compartilhado em vez de introduzir Flyway e uma segunda imagem: backend e worker usam o mesmo schema, e o projeto já possui as migrações SQL e psycopg2. O backend passa a validar o schema em vez de alterá-lo; o worker verifica o histórico antes de consumir a fila.
 
 ## Banco novo

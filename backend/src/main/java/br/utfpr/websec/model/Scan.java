@@ -20,6 +20,9 @@ public class Scan {
     @Column(length = 120)
     private String name;
 
+    @Column(name = "target_url", columnDefinition = "text")
+    private String targetUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.PENDING_VERIFICATION;
@@ -49,6 +52,8 @@ public class Scan {
     public Long getId() { return id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public String getTargetUrl() { return targetUrl; }
+    public void setTargetUrl(String targetUrl) { this.targetUrl = targetUrl; }
     public Instant getDeletedAt() { return deletedAt; }
     public void setDeletedAt(Instant deletedAt) { this.deletedAt = deletedAt; }
     public boolean isDeleted() { return deletedAt != null; }
