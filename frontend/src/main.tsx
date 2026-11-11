@@ -14,6 +14,7 @@ import SubmitScanPage from "./pages/SubmitScanPage";
 import ScanReportPage from "./pages/ScanReportPage";
 import VerificationTokenPage from "./pages/VerificationTokenPage";
 import MyDomainsPage from "./pages/MyDomainsPage";
+import ScanListPage from "./pages/ScanListPage";
 import ScanComparisonPage from "./pages/ScanComparisonPage";
 import AccountPage from "./pages/AccountPage";
 import {
@@ -64,6 +65,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             }
           />
           <Route path="/dominios" element={<ProtectedRoute><AppShell><MyDomainsPage /></AppShell></ProtectedRoute>} />
+          <Route path="/varreduras" element={<ProtectedRoute><AppShell><ScanListPage /></AppShell></ProtectedRoute>} />
           <Route path="/comparar" element={<ProtectedRoute><AppShell><ScanComparisonPage /></AppShell></ProtectedRoute>} />
           <Route path="/verificacao/token" element={<ProtectedRoute><AppShell><VerificationTokenPage /></AppShell></ProtectedRoute>} />
           <Route

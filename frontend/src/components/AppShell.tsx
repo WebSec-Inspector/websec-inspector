@@ -14,6 +14,7 @@ type AppShellProps = {
 const userNavigation = [
   { label: "Início", to: "/", icon: houseIcon, end: true },
   { label: "Nova varredura", to: "/scans/novo", icon: scanIcon },
+  { label: "Todas as varreduras", to: "/varreduras", icon: scanIcon },
 ];
 
 const adminNavigation = [
