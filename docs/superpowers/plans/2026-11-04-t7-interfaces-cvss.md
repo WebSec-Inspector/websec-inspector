@@ -7,7 +7,7 @@ Goal: concluir as pendências T7 preservando a main 0ede917 e permitir avaliaç�
 Architecture: Spring/React/PostgreSQL/worker atuais. Avaliação humana fornece 11 métricas obrigatórias; Java calcula CVSS-B usando biblioteca versionada, sem inferir métricas do risco ZAP. Risco ZAP, score aproximado legado e CVSS são campos separados. Escopo do ator e revisões evitam acesso entre contas e sobrescrita concorrente. PDF regenerado após avaliação usa token de geração existente para descartar versão obsoleta.
 
 ## T7-A — Resultados e CVSS, PR própria
-- [ ] Migração011 aditiva para avaliação atual e histórico por finding, vetor/versão/score/gravidade/justificativa/autor/data/revisão; não editar001–010.
+- [ ] Migração012 aditiva para avaliação atual e histórico por finding, vetor/versão/score/gravidade/justificativa/autor/data/revisão; não editar001–010.
 - [ ] Motor CVSS4.0 Base com validação estrita de 11 métricas, sem defaults e sem aceitar nota do cliente. Vetores oficiais/de referência e erros têm testes.
 - [ ] Preview autenticado; leitura por escopo; gravação por gerente/admin no escopo, só scan concluído e não excluído, revisão esperada e auditoria append-only. Cliente pode ler; canAssess informa permissão.
 - [ ] Invalidação segura de PDF em andamento/pronto após alteração, mantendo COMPLETED; worker inclui avaliação salva no PDF, com versão/vetor e score aproximado separado.
@@ -29,7 +29,7 @@ Architecture: Spring/React/PostgreSQL/worker atuais. Avaliação humana fornece 
 
 ## T7-D — Sessão, PR própria após cadastro/CVSS
 - [ ] Implementar refresh rotativo e revogável se mantido o critério original; accessJWT existente continua compatível. Hash do token no banco, limites/expiração, logout/replay/concorrência e frontend controlam renovação.
-- [ ] Migração012 sobre011 para manter manifesto contíguo; branch empilhada explicita dependência sem duplicar diffs de revisão.
+- [ ] Migração013 sobre012 para manter manifesto contíguo; branch empilhada explicita dependência sem duplicar diffs de revisão.
 - [ ] Testar rotação/replay, expiração/revogação e isolamentos sem logar credenciais. Revisão de segurança e CI antes de PR pronta.
 
 ## Verificação após cada merge

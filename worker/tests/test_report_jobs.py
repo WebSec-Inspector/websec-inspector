@@ -50,6 +50,26 @@ class ReportJobsTests(unittest.TestCase):
         self.completed()
         self.assertEqual('https://example.invalid (inferido; URL original não registrada)', self.report_target())
 
+    def test_same_report_contains_persisted_target_and_saved_cvss(self):
+        self.completed()
+        vector='CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N'
+        target='http://example.invalid:8080/app?mode=1'
+        with self.conn.cursor() as cur:
+            cur.execute('UPDATE scans SET target_url=%s,submitted_url=%s WHERE id=1',(target,target))
+            cur.execute("INSERT INTO findings(scan_id,owasp_category,description,cvss_score,severity) VALUES(1,'A01','Evidence',3,'LOW') RETURNING id")
+            finding_id=cur.fetchone()[0]
+            cur.execute("""INSERT INTO finding_cvss_assessments(finding_id,version,vector,base_score,severity,justification,assessed_by,revision)
+                VALUES(%s,'4.0',%s,9.3,'CRITICAL','Reviewed',1,1)""",(finding_id,vector))
+        self.conn.commit()
+        from worker.report_jobs import process_next_report
+        with patch('worker.report_jobs.generate_pdf_report',return_value='/nonexistent/scan.pdf') as pdf:
+            self.assertTrue(process_next_report(self.conn))
+        self.assertEqual(target,pdf.call_args.kwargs['metadata']['target'])
+        row=pdf.call_args.args[2][0]
+        self.assertEqual(vector,row['cvss_vector'])
+        self.assertEqual(9.3,row['cvss_base_score'])
+        self.assertEqual(3,row['cvss_score'])
+
     def test_pdf_failure_preserves_completed_scan_and_supports_explicit_retry(self):
         self.completed()
         from worker.report_jobs import process_next_report

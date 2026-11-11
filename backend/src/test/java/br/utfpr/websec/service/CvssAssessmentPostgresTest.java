@@ -63,7 +63,7 @@ class CvssAssessmentPostgresTest {
     }
     private long scan(User u,String state){
         Long domain=jdbc.queryForObject("INSERT INTO domains(user_id,hostname,verification_token) VALUES (?,?,?) RETURNING id",Long.class,u.getId(),"example.invalid",UUID.randomUUID().toString());
-        return jdbc.queryForObject("INSERT INTO scans(domain_id,status,created_at) VALUES (?,?,now()) RETURNING id",Long.class,domain,state);
+        return jdbc.queryForObject("INSERT INTO scans(domain_id,status,created_at,target_url) VALUES (?,?,now(),'https://example.invalid') RETURNING id",Long.class,domain,state);
     }
     @AfterEach void cleanup()throws Exception{
         for(Long id:ids){
