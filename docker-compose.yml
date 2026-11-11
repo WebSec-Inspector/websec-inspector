@@ -99,6 +99,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: troque-este-segredo-em-producao-troque-este-segredo
+      WEBSEC_REFRESH_COOKIE_SECURE: ${WEBSEC_REFRESH_COOKIE_SECURE:-true}
+      WEBSEC_CORS_ORIGINS: ${WEBSEC_CORS_ORIGINS:-http://localhost:5173}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
       WEBSEC_DEV_BYPASS_ENABLED: ${WEBSEC_DEV_BYPASS_ENABLED:-false}
       SMTP_HOST: mailhog

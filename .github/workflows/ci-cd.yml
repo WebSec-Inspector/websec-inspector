@@ -31,6 +31,9 @@ jobs:
     env:
       TEST_POSTGRES_DSN: postgresql://websec_test:test-only@localhost:5432/websec_test
       TEST_POSTGRES_JDBC: jdbc:postgresql://localhost:5432/websec_test
+      # Several cached Spring contexts share the disposable PostgreSQL instance.
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: '4'
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: '0'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

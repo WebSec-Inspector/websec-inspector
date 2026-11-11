@@ -16,6 +16,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import br.utfpr.websec.security.JwtService;
 
 import java.util.Map;
 import java.util.UUID;
@@ -24,6 +25,8 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 @SpringBootTest
@@ -42,6 +45,7 @@ class RegistrationPostgresTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper json;
     @SpyBean PasswordEncoder passwords;
+    @SpyBean JwtService jwt;
     private final String email = UUID.randomUUID() + "@example.invalid";
 
     @AfterEach
@@ -73,6 +77,19 @@ class RegistrationPostgresTest {
         assertEquals("CLIENTE", jdbc.queryForObject("SELECT role FROM users WHERE email=?", String.class, email));
         assertDuplicate(register());
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM users WHERE email=?", Integer.class, email));
+    }
+
+    @Test
+    void issuanceFailureRollsBackAccountAndRefreshFamilyAndAllowsRetry() throws Exception {
+        int families=jdbc.queryForObject("SELECT count(*) FROM refresh_families",Integer.class);
+        int tokens=jdbc.queryForObject("SELECT count(*) FROM refresh_tokens",Integer.class);
+        doThrow(new RuntimeException("forced issuance failure")).when(jwt).generateToken(email);
+        var failed=register();assertEquals(500,failed.getResponse().getStatus());
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM users WHERE email=?",Integer.class,email));
+        assertEquals(families,jdbc.queryForObject("SELECT count(*) FROM refresh_families",Integer.class));
+        assertEquals(tokens,jdbc.queryForObject("SELECT count(*) FROM refresh_tokens",Integer.class));
+        doCallRealMethod().when(jwt).generateToken(email);
+        assertEquals(200,register().getResponse().getStatus());
     }
 
     @Test

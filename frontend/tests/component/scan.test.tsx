@@ -106,6 +106,7 @@ describe("Scans — interface real e respostas HTTP controladas", () => {
   });
 
   test("SCAN-UI-07: API envia Bearer token e 401 encerra sessão protegida", async () => {
+    http.onPost("/auth/refresh").reply(401, { error: "Sessão expirada" });
     localStorage.setItem("websec_token", "qa-token");
     http.onGet("/scans/42").reply(config => config.headers?.Authorization === "Bearer qa-token" ? [401, { error: "Sessão expirada" }] : [500, {}]);
     renderPage(<ProtectedRoute><DashboardPage /></ProtectedRoute>, "/test");
