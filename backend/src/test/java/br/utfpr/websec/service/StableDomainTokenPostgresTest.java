@@ -164,7 +164,7 @@ class StableDomainTokenPostgresTest {
         assertEquals("VERIFICATION_PENDING", json.readTree(pending).get("code").asText());
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM scans WHERE domain_id=?", Integer.class, domainId));
 
-        jdbc.update("INSERT INTO scans(domain_id,status,created_at) VALUES (?, 'COMPLETED', now())", domainId);
+        jdbc.update("INSERT INTO scans(domain_id,status,created_at,target_url) VALUES (?, 'COMPLETED', now(), 'https://example.invalid')", domainId);
         http.perform(delete("/api/domains/" + domainId).header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
         assertFalse(domains.findById(domainId).orElseThrow().isActive());
@@ -214,12 +214,12 @@ class StableDomainTokenPostgresTest {
     void repeatedWwwPrefixesStayDistinctAndLookupIsIdempotent() {
         User owner = owner();
         Domain domain = published(owner,"WWW.WWW.EXAMPLE.INVALID.",false);
-        String canonical = ScanService.normalizeHostname(domain.getHostname());
+        String canonical = DomainHostname.normalize(domain.getHostname());
         assertEquals("www.www.example.invalid",canonical);
-        assertEquals(canonical,ScanService.normalizeHostname(canonical));
+        assertEquals(canonical,DomainHostname.normalize(canonical));
         assertEquals(domain.getId(),domains.findCanonicalDomains(canonical,owner.getId()).get(0).getId());
         assertEquals(domain.getId(),domains.findCanonicalDomains(canonical,owner.getId()).get(0).getId());
-        assertTrue(domains.findCanonicalDomains(ScanService.normalizeHostname("www.example.invalid."),owner.getId()).isEmpty());
+        assertTrue(domains.findCanonicalDomains(DomainHostname.normalize("www.example.invalid."),owner.getId()).isEmpty());
     }
 
     @Test

@@ -32,6 +32,24 @@ class ReportJobsTests(unittest.TestCase):
                 self.assertEqual('READY', status)
                 self.assertTrue((Path(folder) / key).read_bytes().startswith(b'%PDF-'))
 
+    def report_target(self):
+        from worker.report_jobs import process_next_report
+        with patch('worker.report_jobs.generate_pdf_report', return_value='/nonexistent/scan.pdf') as pdf:
+            self.assertTrue(process_next_report(self.conn))
+        return pdf.call_args.kwargs['metadata']['target']
+
+    def test_report_shows_the_persisted_target_url(self):
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE scans SET target_url='http://example.invalid:8080/loja?x=1', submitted_url='HTTP://example.invalid:8080/loja?x=1#topo' WHERE id=1")
+        self.conn.commit()
+        self.completed()
+        self.assertEqual('http://example.invalid:8080/loja?x=1', self.report_target())
+
+    def test_legacy_report_marks_the_target_as_inferred(self):
+        # A fixture não informa submitted_url, como um scan anterior à migration 011.
+        self.completed()
+        self.assertEqual('https://example.invalid (inferido; URL original não registrada)', self.report_target())
+
     def test_pdf_failure_preserves_completed_scan_and_supports_explicit_retry(self):
         self.completed()
         from worker.report_jobs import process_next_report

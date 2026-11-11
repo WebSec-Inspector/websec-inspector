@@ -101,6 +101,20 @@ class ScanServiceAuthorizationTest {
     }
 
     @Test
+    void scanCriadoPreservaUrlNormalizadaEOriginal() {
+        when(domains.findCanonicalDomains("localhost", client.getId())).thenReturn(List.of());
+        ScanResponse response = service.submitUrl(client.getEmail(), new ScanRequest("HTTP://localhost:8080/painel?x=1#topo", null, null));
+        assertEquals("http://localhost:8080/painel?x=1", response.targetUrl());
+        assertEquals("localhost", response.hostname());
+
+        var saved = org.mockito.ArgumentCaptor.forClass(Scan.class);
+        verify(scans).save(saved.capture());
+        assertEquals("http://localhost:8080/painel?x=1", saved.getValue().getTargetUrl());
+        assertEquals("HTTP://localhost:8080/painel?x=1#topo", saved.getValue().getSubmittedUrl());
+        assertEquals("localhost", saved.getValue().getDomain().getHostname());
+    }
+
+    @Test
     void gerentePodeCriarScanParaClienteAtribuido() {
         when(domains.findCanonicalDomains("localhost", client.getId())).thenReturn(List.of());
         ScanResponse response = service.submitUrl(manager.getEmail(),

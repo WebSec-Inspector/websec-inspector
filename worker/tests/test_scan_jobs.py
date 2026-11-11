@@ -20,7 +20,7 @@ class ScanJobTests(unittest.TestCase):
         with self.conn.cursor() as cur:
             cur.execute("INSERT INTO users(email,password_hash,name,role,created_at) VALUES ('job@example.invalid','hash','Job','CLIENTE',now())")
             cur.execute("INSERT INTO domains(user_id,hostname,verification_token) VALUES (1,'example.invalid','token')")
-            cur.execute("INSERT INTO scans(domain_id,status,created_at) VALUES (1,'QUEUED',now())")
+            cur.execute("INSERT INTO scans(domain_id,status,created_at,target_url) VALUES (1,'QUEUED',now(),'https://example.invalid')")
         self.conn.commit()
 
     def tearDown(self):
@@ -30,6 +30,22 @@ class ScanJobTests(unittest.TestCase):
             cur.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(self.schema)))
         self.conn.commit()
         self.conn.close()
+
+    def test_worker_target_is_the_persisted_url_not_the_hostname(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        import scan_worker
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE scans SET target_url='http://example.invalid:8080/loja/login?x=1' WHERE id=1")
+        self.conn.commit()
+        self.assertEqual('http://example.invalid:8080/loja/login?x=1', scan_worker.fetch_scan_target(self.conn, 1))
+        # Scan excluído logicamente continua sem alvo executável.
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE scans SET deleted_at=now() WHERE id=1")
+        self.conn.commit()
+        with self.assertRaises(ValueError):
+            scan_worker.fetch_scan_target(self.conn, 1)
 
     def test_queued_scan_is_claimed_without_any_redis_notification(self):
         from worker.scan_jobs import claim_next, complete

@@ -111,13 +111,15 @@ recebe uma URL.
 
 O backend:
 
-1. normaliza a URL;
+1. normaliza a URL, preservando porta, caminho e query;
 2. extrai o hostname;
-3. remove `www.` quando aplicável;
+3. remove `www.` do hostname do domínio quando aplicável;
 4. valida a existência de um hostname;
 5. cria ou reutiliza o `Domain` do usuário;
-6. cria o `Scan`;
+6. cria o `Scan` com `targetUrl` (URL normalizada executada pelo worker) e `submittedUrl` (texto original);
 7. retorna o token de verificação.
+
+As regras de normalização estão em [`preservacao-url.md`](preservacao-url.md).
 
 O estado inicial é:
 
@@ -310,6 +312,8 @@ hostname + user_id
 
 - `id`
 - `domain`
+- `targetUrl` (URL normalizada executada pelo worker)
+- `submittedUrl` (texto original enviado pelo usuário)
 - `status`
 - `createdAt`
 - `startedAt`

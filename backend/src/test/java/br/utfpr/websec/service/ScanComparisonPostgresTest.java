@@ -62,7 +62,7 @@ class ScanComparisonPostgresTest {
     }
     private long scan(User u,String state){
         Long domain=jdbc.queryForObject("INSERT INTO domains(user_id,hostname,verification_token) VALUES (?,?,?) RETURNING id",Long.class,u.getId(),UUID.randomUUID()+".example.invalid",UUID.randomUUID().toString());
-        return jdbc.queryForObject("INSERT INTO scans(domain_id,status,created_at) VALUES (?,?,now()) RETURNING id",Long.class,domain,state);
+        return jdbc.queryForObject("INSERT INTO scans(domain_id,status,created_at,target_url) VALUES (?,?,now(),'https://example.invalid') RETURNING id",Long.class,domain,state);
     }
     @AfterEach void cleanup()throws Exception{
         for(Long id:ids){
@@ -77,7 +77,7 @@ class ScanComparisonPostgresTest {
     private long[] pair(User u){
         long first=scan(u,"COMPLETED");
         long domain=jdbc.queryForObject("SELECT domain_id FROM scans WHERE id=?",Long.class,first);
-        long second=jdbc.queryForObject("INSERT INTO scans(domain_id,status,created_at,finished_at) VALUES (?,'COMPLETED',now(),now()) RETURNING id",Long.class,domain);
+        long second=jdbc.queryForObject("INSERT INTO scans(domain_id,status,created_at,finished_at,target_url) VALUES (?,'COMPLETED',now(),now(),'https://example.invalid') RETURNING id",Long.class,domain);
         return new long[]{first,second};
     }
     private void finding(long id,String rule,String url,String method,String severity,String title){
