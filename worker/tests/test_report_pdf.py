@@ -1,11 +1,19 @@
 import tempfile
 import unittest
+import re
 from pathlib import Path
 from unittest.mock import patch
 from worker import report_service
 
 
 class ReportPdfTests(unittest.TestCase):
+    def test_cover_and_executive_summary_are_on_separate_pages(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(report_service,'REPORTS_DIR',folder):
+            path=report_service.generate_pdf_report(7,'example.invalid',[],
+                metadata={'target':'http://example.invalid:8080/app?mode=1'},file_key='cover.pdf')
+            pages=re.findall(rb'/Type\s*/Page\b',Path(path).read_bytes())
+            self.assertEqual(2,len(pages))
+
     def test_empty_report_and_untrusted_long_evidence_generate_without_markup_execution(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(report_service,'REPORTS_DIR',folder):
             path = report_service.generate_pdf_report(1,'<img src="https://example.invalid">',[],

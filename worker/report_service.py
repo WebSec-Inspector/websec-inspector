@@ -6,7 +6,7 @@ import os
 import logging
 
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
@@ -46,14 +46,17 @@ def generate_pdf_report(scan_id: int, hostname: str, findings: list[dict], *, me
     def moment(value):
         return value.isoformat() if hasattr(value,'isoformat') else value or 'Não informado'
 
-    story = [paragraph('WebSec Inspector', 'Title'),
+    story = [Spacer(1,72), paragraph('WebSec Inspector', 'Title'),
              paragraph('Relatório de segurança', 'Heading1'),
              field('Domínio', hostname), field('Varredura', scan_id),
              field('Alvo utilizado', metadata.get('target', 'Não registrado na execução legada')),
              field('Estado', metadata.get('status','COMPLETED')),
              field('Início (UTC)',moment(metadata.get('started_at'))),
              field('Conclusão (UTC)',moment(metadata.get('finished_at'))),
-             field('Emissão (UTC)',datetime.now(timezone.utc).isoformat())]
+             field('Emissão (UTC)',datetime.now(timezone.utc).isoformat()),
+             Spacer(1,24),
+             paragraph('Análise automatizada; os achados requerem validação humana. A ausência de achados não garante ausência de vulnerabilidades.'),
+             PageBreak(), paragraph('Resumo executivo', 'Heading1')]
     start, finish = metadata.get('started_at'), metadata.get('finished_at')
     duration = f'{max(0,int((finish-start).total_seconds()))} segundos' if start and finish else 'Não disponível'
     story += [field('Duração',duration),paragraph('Resumo', 'Heading2'),field('Total de achados',len(findings))]
