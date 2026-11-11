@@ -5,9 +5,11 @@ import br.utfpr.websec.dto.CurrentUserResponse;
 import br.utfpr.websec.dto.LoginRequest;
 import br.utfpr.websec.dto.RegisterRequest;
 import br.utfpr.websec.exception.ResourceNotFoundException;
+import br.utfpr.websec.exception.EmailAlreadyRegisteredException;
 import br.utfpr.websec.model.User;
 import br.utfpr.websec.repository.UserRepository;
 import br.utfpr.websec.security.JwtService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,7 +30,7 @@ public class AuthService {
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new IllegalArgumentException("E-mail já cadastrado");
+            throw new EmailAlreadyRegisteredException();
         }
         User user = new User();
         user.setName(request.name());
@@ -36,7 +38,16 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         // O cadastro público sempre cria CLIENTE; o cliente nunca escolhe seu próprio perfil.
         user.setRole(User.Role.CLIENTE);
-        userRepository.save(user);
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException ex) {
+            // The repository transaction has rolled back. A competing registration
+            // may have inserted this email after the initial existence check.
+            if (userRepository.existsByEmail(request.email())) {
+                throw new EmailAlreadyRegisteredException();
+            }
+            throw ex;
+        }
         return new AuthResponse(jwtService.generateToken(user.getEmail()));
     }
 
