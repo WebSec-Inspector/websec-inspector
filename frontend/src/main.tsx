@@ -14,6 +14,7 @@ import SubmitScanPage from "./pages/SubmitScanPage";
 import ScanReportPage from "./pages/ScanReportPage";
 import VerificationTokenPage from "./pages/VerificationTokenPage";
 import MyDomainsPage from "./pages/MyDomainsPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 import ScanComparisonPage from "./pages/ScanComparisonPage";
 import AccountPage from "./pages/AccountPage";
 import {
@@ -79,6 +80,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/conta" element={<ProtectedRoute><AccountRoute /></ProtectedRoute>} />
           <Route path="/admin" element={<AdminArea />}>
             <Route index element={<AdminOverviewPage />} />
+            <Route path="indicadores" element={<AdminDashboardPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
             <Route path="perfis" element={<AdminProfilesPage />} />
             <Route path="scans" element={<AdminScansPage />} />

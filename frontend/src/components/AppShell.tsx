@@ -18,6 +18,7 @@ const userNavigation = [
 
 const adminNavigation = [
   { label: "Visão geral", to: "/admin", icon: houseIcon, end: true },
+  { label: "Indicadores", to: "/admin/indicadores", icon: scanIcon },
   { label: "Usuários", to: "/admin/usuarios", icon: scanIcon },
   { label: "Perfis de acesso", to: "/admin/perfis", icon: scanIcon },
   { label: "Scans", to: "/admin/scans", icon: scanIcon },
