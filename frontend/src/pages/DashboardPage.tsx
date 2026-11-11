@@ -1,16 +1,216 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import React, { CSSProperties, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useDomains } from "../context/DomainContext";
-import { useRequestGeneration } from "../hooks/useRequestGeneration";
-import { getDomainHistory, ScanResponse } from "../services/api";
 import { ApiError, toApiError } from "../lib/apiError";
-import { ErrorPanel, LoadingPanel, StatePanel } from "../components/FeedbackState";
+import { Finding, getDomainHistory, ScanResponse } from "../services/api";
 import ScanStatusBadge from "../components/ScanStatusBadge";
+import arrowRightIcon from "../assets/figma/arrow-right.svg";
+import calendarIcon from "../assets/figma/calendar.svg";
+import timerIcon from "../assets/figma/timer.svg";
+import globeIcon from "../assets/figma/globe.svg";
+import checkIcon from "../assets/figma/check-circle.svg";
+import shieldIcon from "../assets/figma/shield-check.svg";
+import criticalMarker from "../assets/figma/severity-critical.svg";
+import highMarker from "../assets/figma/severity-high.svg";
+import mediumMarker from "../assets/figma/severity-medium.svg";
+import lowMarker from "../assets/figma/severity-low.svg";
+
+const severityRows = [
+  { key: "CRITICAL", label: "Críticas", color: "#ff646b", marker: criticalMarker },
+  { key: "HIGH", label: "Altas", color: "#ff9d45", marker: highMarker },
+  { key: "MEDIUM", label: "Médias", color: "#f6c453", marker: mediumMarker },
+  { key: "LOW", label: "Baixas", color: "#399eff", marker: lowMarker },
+  { key: "INFORMATIONAL", label: "Informativas", color: "#6d8cb1", marker: null },
+] as const;
+
+function formatDate(value: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatDuration(start: string, finish: string | null) {
+  if (!finish) return "—";
+  const milliseconds = Date.parse(finish) - Date.parse(start);
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return "—";
+  const seconds = Math.floor(milliseconds / 1000);
+  if (seconds < 60) return seconds + " s";
+  return Math.floor(seconds / 60) + " min " + (seconds % 60) + " s";
+}
+
+function countFindings(findings: Finding[]) {
+  const counts: Record<string, number> = {
+    CRITICAL: 0,
+    HIGH: 0,
+    MEDIUM: 0,
+    LOW: 0,
+    INFORMATIONAL: 0,
+  };
+  findings.forEach((finding) => {
+    if (finding.severity in counts) counts[finding.severity] += 1;
+  });
+  return counts;
+}
+
+function DonutChart({ findings }: { findings: Finding[] }) {
+  const counts = countFindings(findings);
+  const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+  let cursor = 0;
+  const segments = severityRows
+    .filter((row) => counts[row.key] > 0)
+    .map((row) => {
+      const start = cursor;
+      cursor += (counts[row.key] / Math.max(total, 1)) * 100;
+      return row.color + " " + start + "% " + cursor + "%";
+    });
+  const gradient = segments.length > 0
+    ? "conic-gradient(" + segments.join(", ") + ")"
+    : "conic-gradient(#1c3d60 0% 100%)";
+
+  return (
+    <div className="findings-layout">
+      <div className="severity-donut" style={{ background: gradient } as CSSProperties} role="img" aria-label={total + " vulnerabilidades encontradas"}>
+        <div className="severity-donut__center">
+          <strong>{total}</strong>
+          <span>vulnerabilidades</span>
+        </div>
+      </div>
+      <div className="severity-legend">
+        {severityRows.filter((row) => row.key !== "INFORMATIONAL" || counts.INFORMATIONAL > 0).map((row) => {
+          const count = counts[row.key];
+          const percent = total === 0 ? 0 : Math.round((count / total) * 100);
+          return (
+            <div className="severity-legend__row" key={row.key}>
+              {row.marker ? <img src={row.marker} alt="" aria-hidden="true" /> : <span className="severity-legend__dot" style={{ background: row.color }} />}
+              <span>{row.label}</span>
+              <strong>{count}</strong>
+              <small>{percent}%</small>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function LatestScanCard({ scan }: { scan: ScanResponse }) {
+  return (
+    <section className="latest-scan-card">
+      <div className="latest-scan-card__main">
+        <div className="eyebrow"><span className="status-indicator" /> Última varredura</div>
+        <div className="latest-scan-card__title">
+          <h2>{scan.hostname || "Domínio da varredura"}</h2>
+          <ScanStatusBadge status={scan.status} />
+        </div>
+        <div className="latest-scan-card__meta">
+          <span><img src={calendarIcon} alt="" aria-hidden="true" />{formatDate(scan.createdAt)}</span>
+          <span><img src={timerIcon} alt="" aria-hidden="true" />{formatDuration(scan.createdAt, scan.finishedAt)}</span>
+          <Link className="button button--primary" aria-label={"Varredura #" + scan.id + ": ver relatório"} to={"/scans/" + scan.id}>
+            Ver relatório <img src={arrowRightIcon} alt="" aria-hidden="true" />
+          </Link>
+        </div>
+      </div>
+      <aside className="latest-scan-card__score">
+        <div className="score-ring" aria-hidden="true"><span>—<small>/100</small></span></div>
+        <div>
+          <span className="eyebrow">Segurança</span>
+          <strong>Pontuação indisponível</strong>
+          <small>A API não fornece um índice consolidado.</small>
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function FindingsCard({ scan }: { scan: ScanResponse }) {
+  return (
+    <section className="surface-card findings-card">
+      <header className="surface-card__heading">
+        <div>
+          <h2>Vulnerabilidades encontradas</h2>
+          <p>Distribuição por nível de severidade</p>
+        </div>
+        <span className="count-chip">{scan.findingsCount} no total</span>
+      </header>
+      {scan.status === "COMPLETED" ? (
+        <DonutChart findings={scan.findings} />
+      ) : (
+        <div className="chart-empty">
+          <span className="chart-empty__icon"><img src={shieldIcon} alt="" aria-hidden="true" /></span>
+          <strong>Os resultados ainda não estão disponíveis</strong>
+          <p>As vulnerabilidades serão exibidas quando a varredura for concluída.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AnalysisDetails({ scan }: { scan: ScanResponse }) {
+  return (
+    <section className="surface-card analysis-card">
+      <header className="surface-card__heading">
+        <div>
+          <h2>Detalhes da análise</h2>
+          <p>Escopo e resultado da execução</p>
+        </div>
+      </header>
+      <div className="analysis-url">
+        <span className="eyebrow">URL analisada</span>
+        <strong><img src={globeIcon} alt="" aria-hidden="true" />{scan.hostname || "—"}</strong>
+      </div>
+      <div className="analysis-stats">
+        <div>
+          <span className="eyebrow">Vulnerabilidades</span>
+          <strong>{scan.findingsCount}</strong>
+        </div>
+        <div>
+          <span className="eyebrow">Finalizada em</span>
+          <strong>{scan.finishedAt ? formatDate(scan.finishedAt) : "—"}</strong>
+        </div>
+      </div>
+      <div className="analysis-status">
+        <div>
+          <span>Status da varredura</span>
+          <ScanStatusBadge status={scan.status} />
+        </div>
+        {scan.status === "COMPLETED" && (
+          <p><img src={checkIcon} alt="" aria-hidden="true" /> A varredura foi concluída e os resultados estão disponíveis.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Message({
+  title,
+  message,
+  action,
+  onRetry,
+}: {
+  title: string;
+  message: string;
+  action?: React.ReactNode;
+  onRetry?: () => void;
+}) {
+  return (
+    <section className="empty-state" role={onRetry ? "alert" : undefined}>
+      <span className="empty-state__icon"><img src={shieldIcon} alt="" aria-hidden="true" /></span>
+      <h2>{title}</h2>
+      <p>{message}</p>
+      {onRetry && <button type="button" className="button button--outline" onClick={onRetry}>Tentar novamente</button>}
+      {action}
+    </section>
+  );
+}
 
 export default function DashboardPage() {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
   const {
     domains,
     activeDomainId,
@@ -20,296 +220,85 @@ export default function DashboardPage() {
     refresh: refreshDomains,
     selectDomain,
   } = useDomains();
-
-  const [history, setHistory] = useState<{
-    domainId: number;
-    scans: ScanResponse[];
-  } | null>(null);
+  const [history, setHistory] = useState<ScanResponse[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<ApiError | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const request = useRequestGeneration();
-
-  const goToLogin = useCallback(() => {
-    logout();
-    navigate("/login", { replace: true });
-  }, [logout, navigate]);
-
-  /*
-   * Uma consulta nunca é descartada por já existir outra em andamento: a mais
-   * recente sempre vence. A anterior continua chegando, mas é ignorada, para
-   * que o histórico de um domínio não apareça sob outro domínio selecionado.
-   */
-  const loadHistory = useCallback(
-    async (domainId: number) => {
-      const generation = request.start();
-      setHistoryLoading(true);
-      setHistoryError(null);
-      try {
-        const data = await getDomainHistory(domainId);
-        if (!request.isCurrent(generation)) return;
-        setHistory({ domainId, scans: data });
-      } catch (err) {
-        if (!request.isCurrent(generation)) return;
-        setHistory(null);
-        setHistoryError(toApiError(err));
-      } finally {
-        if (request.isCurrent(generation)) setHistoryLoading(false);
-      }
-    },
-    [request],
-  );
-
-  /*
-   * A consulta do historico so acontece com um domainId resolvido pelo
-   * DomainContext. Sem dominio, nenhuma requisicao e disparada - era
-   * justamente a chamada que a tela anterior prometia e nunca fazia.
-   */
   useEffect(() => {
+    let active = true;
+    setHistory(null);
     if (activeDomainId === null) {
-      // Sem domínio: descarta o que estiver em voo antes de limpar a tela.
-      request.invalidate();
-      setHistory(null);
       setHistoryError(null);
       setHistoryLoading(false);
-      return;
+      return () => { active = false; };
     }
-    void loadHistory(activeDomainId);
-  }, [activeDomainId, loadHistory, request]);
+    setHistoryLoading(true);
+    setHistoryError(null);
+    getDomainHistory(activeDomainId)
+      .then((scans) => { if (active) setHistory(scans); })
+      .catch((err) => { if (active) { setHistory(null); setHistoryError(toApiError(err)); } })
+      .finally(() => { if (active) setHistoryLoading(false); });
+    return () => {
+      active = false;
+    };
+  }, [activeDomainId, refreshKey]);
 
-  const reloadHistory = useCallback(() => {
-    if (activeDomainId !== null) void loadHistory(activeDomainId);
-  }, [activeDomainId, loadHistory]);
-
-  return (
-    <div className="min-h-screen px-6 py-8">
-      <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">WebSec Inspector</h1>
-          <p className="text-sm text-slate-400">Painel de varreduras de segurança</p>
-        </div>
-        <div className="flex gap-3">
-          <Link to="/admin" className="rounded-md border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">Administração</Link><Link to="/dominios"
-            className="rounded-md border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
-          >
-            Meus domínios
-          </Link>
-          <Link
-            to="/scans/novo"
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink hover:opacity-90"
-          >
-            Nova varredura
-          </Link>
-          <button
-            onClick={logout}
-            className="rounded-md border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
-          >
-            Sair
-          </button>
-        </div>
-      </header>
-
-      {domains.length > 1 && (
-        <DomainSelector
-          domains={domains}
-          activeDomainId={activeDomainId}
-          onSelect={selectDomain}
-        />
-      )}
-
-      <Content
-        domainsLoading={domainsLoading}
-        domainsError={domainsError}
-        refreshDomains={refreshDomains}
-        goToLogin={goToLogin}
-        hasDomains={domains.length > 0}
-        activeDomain={activeDomain}
-        activeDomainId={activeDomainId}
-        history={history?.domainId === activeDomainId ? history.scans : null}
-        historyLoading={historyLoading}
-        historyError={historyError}
-        reloadHistory={reloadHistory}
-      />
-    </div>
-  );
-}
-
-function Content({
-  domainsLoading,
-  domainsError,
-  refreshDomains,
-  goToLogin,
-  hasDomains,
-  activeDomain,
-  activeDomainId,
-  history,
-  historyLoading,
-  historyError,
-  reloadHistory,
-}: {
-  domainsLoading: boolean;
-  domainsError: ApiError | null;
-  refreshDomains: () => void;
-  goToLogin: () => void;
-  hasDomains: boolean;
-  activeDomain: { hostname: string; verified: boolean } | null;
-  activeDomainId: number | null;
-  history: ScanResponse[] | null;
-  historyLoading: boolean;
-  historyError: ApiError | null;
-  reloadHistory: () => void;
-}) {
-  // 1. Carregando a lista de dominios.
-  if (domainsLoading && !hasDomains) {
-    return <LoadingPanel label="Carregando seus domínios..." />;
-  }
-
-  // 2. Falha ao carregar dominios.
-  if (domainsError) {
-    return (
-      <ErrorPanel
-        title="Não foi possível carregar seus domínios"
-        error={domainsError}
-        handlers={{ retry: refreshDomains, login: goToLogin }}
-      />
-    );
-  }
-
-  // 3. Nenhum dominio cadastrado.
-  if (!hasDomains || activeDomainId === null) {
-    return (
-      <StatePanel title="Você ainda não tem domínios cadastrados">
-        <p className="mb-4">
-          Submeta uma URL para cadastrar seu primeiro domínio e iniciar a verificação de
-          propriedade.
-        </p>
-        <Link
-          to="/scans/novo"
-          className="inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink hover:opacity-90"
-        >
-          Submeter uma URL
-        </Link>
-      </StatePanel>
-    );
-  }
-
-  return (
-    <section>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-medium text-slate-200">
-            Histórico de {activeDomain?.hostname ?? `domínio #${activeDomainId}`}
-          </h2>
-          <p className="text-xs text-slate-500">
-            {activeDomain?.verified
-              ? "Domínio verificado."
-              : "Domínio ainda não verificado — conclua a verificação para executar varreduras."}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={reloadHistory}
-          disabled={historyLoading}
-          className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
-        >
-          {historyLoading ? "Atualizando..." : "Atualizar"}
-        </button>
-      </div>
-
-      {/* 4. Carregando o historico. */}
-      {historyLoading && history === null && <LoadingPanel label="Carregando histórico..." />}
-
-      {/* 5. Falha ao carregar o historico. */}
-      {historyError && (
-        <ErrorPanel
-          title="Não foi possível carregar o histórico"
-          error={historyError}
-          handlers={{ retry: reloadHistory, login: goToLogin }}
-        />
-      )}
-
-      {/* 6. Historico vazio. */}
-      {!historyLoading && !historyError && history !== null && history.length === 0 && (
-        <StatePanel title="Nenhuma varredura neste domínio">
-          <p className="mb-4">
-            {activeDomain?.verified
-              ? "Este domínio ainda não tem varreduras registradas."
-              : "Conclua a verificação de propriedade para executar a primeira varredura."}
-          </p>
-          <Link
-            to="/scans/novo"
-            className="inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink hover:opacity-90"
-          >
-            Nova varredura
-          </Link>
-        </StatePanel>
-      )}
-
-      {/* 7. Historico carregado. */}
-      {history && history.filter(s=>s.status==='COMPLETED').length>=2 && (
-        <Link to={`/comparar?dominio=${activeDomainId}`} className="mb-4 inline-block rounded-md border border-accent/40 px-4 py-2 text-sm text-accent">Comparar varreduras</Link>
-      )}
-      {history !== null && history.length > 0 && <HistoryList scans={history} />}
-    </section>
-  );
-}
-
-function HistoryList({ scans }: { scans: ScanResponse[] }) {
-  return (
-    <ul className="space-y-3">
-      {scans.map((scan) => (
-        <li key={scan.id}>
-          <Link
-            to={`/scans/${scan.id}`}
-            className="block rounded-xl border border-white/10 bg-panel p-4 transition hover:border-accent/40"
-          >
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-              <span className="font-medium">Varredura #{scan.id}</span>
-              <ScanStatusBadge status={scan.status} />
-            </div>
-            <p className="text-xs text-slate-500">
-              Criada em{" "}
-              {scan.createdAt
-                ? new Date(scan.createdAt).toLocaleString("pt-BR")
-                : "data indisponível"}
-              {scan.findings.length > 0 &&
-                ` — ${scan.findings.length} ${
-                  scan.findings.length === 1 ? "finding" : "findings"
-                }`}
-            </p>
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function DomainSelector({
-  domains,
-  activeDomainId,
-  onSelect,
-}: {
-  domains: Array<{ id: number; hostname: string; verified: boolean }>;
-  activeDomainId: number | null;
-  onSelect: (id: number) => void;
-}) {
-  return (
-    <div className="mb-6">
-      <label htmlFor="domain-select" className="mb-1 block text-xs text-slate-400">
-        Domínio
-      </label>
-      <select
-        id="domain-select"
-        value={activeDomainId ?? ""}
-        onChange={(e) => onSelect(Number(e.target.value))}
-        className="rounded-md border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-accent"
-      >
-        {domains.map((d) => (
-          <option key={d.id} value={d.id}>
-            {d.hostname} {d.verified ? "(verificado)" : "(não verificado)"}
-          </option>
-        ))}
+  const latest = history?.[0] ?? null;
+  const domainSelector = domains.length > 1 && (
+    <label className="domain-picker">
+      <span>Domínio ativo</span>
+      <select value={activeDomainId ?? ""} onChange={(event) => selectDomain(Number(event.target.value))}>
+        {domains.map((domain) => <option key={domain.id} value={domain.id}>{domain.hostname}</option>)}
       </select>
-    </div>
+    </label>
+  );
+
+  const historyReload = () => setRefreshKey((value) => value + 1);
+
+  return (
+    <section className="page-view dashboard-view">
+      <div className="dashboard-title-row">
+        <div>
+          <h1>Painel de varreduras de segurança</h1>
+          <p>Visão consolidada da análise mais recente</p>
+        </div>
+        <Link to="/scans/novo" className="button button--primary">
+          Nova varredura <img src={arrowRightIcon} alt="" aria-hidden="true" />
+        </Link>
+      </div>
+      {domainSelector}
+
+      {domainsError ? (
+        <Message title="Não foi possível carregar seus domínios" message={domainsError.message} onRetry={refreshDomains} />
+      ) : domainsLoading && domains.length === 0 ? (
+        <div className="page-message" role="status">Carregando seus domínios…</div>
+      ) : domains.length === 0 || activeDomainId === null ? (
+        <Message
+          title="Nenhum domínio cadastrado"
+          message="Submeta uma URL para cadastrar seu primeiro domínio e iniciar a verificação de propriedade."
+          action={<Link to="/scans/novo" className="button button--primary">Submeter uma URL <img src={arrowRightIcon} alt="" aria-hidden="true" /></Link>}
+        />
+      ) : historyError ? (
+        <Message title="Não foi possível carregar o histórico" message={historyError.message} onRetry={historyReload} />
+      ) : historyLoading && !history ? (
+        <div className="page-message" role="status">Carregando a análise mais recente…</div>
+      ) : !history || history.length === 0 ? (
+        <Message
+          title="Nenhuma varredura neste domínio"
+          message={activeDomain?.verified ? "Este domínio ainda não tem varreduras registradas." : "Conclua a verificação de propriedade para executar a primeira varredura."}
+          action={<Link to="/scans/novo" className="button button--primary">Nova varredura <img src={arrowRightIcon} alt="" aria-hidden="true" /></Link>}
+        />
+      ) : (
+        <>
+          <LatestScanCard scan={latest!} />
+          <div className="dashboard-grid">
+            <FindingsCard scan={latest!} />
+            <AnalysisDetails scan={latest!} />
+          </div>
+          {activeDomain && <p className="dashboard-scope">Histórico de {activeDomain.hostname}</p>}
+        </>
+      )}
+    </section>
   );
 }
