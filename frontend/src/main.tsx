@@ -13,6 +13,7 @@ import ScanReportPage from "./pages/ScanReportPage";
 import VerificationTokenPage from "./pages/VerificationTokenPage";
 import MyDomainsPage from "./pages/MyDomainsPage";
 import ScanComparisonPage from "./pages/ScanComparisonPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -49,6 +50,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               </ProtectedRoute>
             }
           />
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboardPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </DomainProvider>

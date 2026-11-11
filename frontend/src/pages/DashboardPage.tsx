@@ -89,8 +89,7 @@ export default function DashboardPage() {
           <p className="text-sm text-slate-400">Painel de varreduras de segurança</p>
         </div>
         <div className="flex gap-3">
-          <Link
-            to="/dominios"
+          <Link to="/admin" className="rounded-md border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">Administração</Link><Link to="/dominios"
             className="rounded-md border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
           >
             Meus domínios

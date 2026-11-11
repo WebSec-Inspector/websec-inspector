@@ -279,3 +279,18 @@ export async function getDomainHistory(domainId: number, signal?:AbortSignal) {
   }
   return data.map(parseScan);
 }
+
+export interface AdminDashboardMetrics {
+  totalUsers: number;
+  totalScans: number;
+  processingFailures: number;
+  averageExecutionSeconds: number;
+  scansByStatus: Record<string, number>;
+  findingsBySeverity: Record<string, number>;
+  scansByPeriod: Array<{ date: string; count: number }>;
+}
+
+export async function getAdminDashboard(days = 7): Promise<AdminDashboardMetrics> {
+  const { data } = await api.get(`/admin/dashboard?days=${days}`);
+  return data as AdminDashboardMetrics;
+}
