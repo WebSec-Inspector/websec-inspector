@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import SeverityBadge from "../components/SeverityBadge";
+import ScanFindings from "../components/ScanFindings";
 import ReportDownload from "../components/ReportDownload";
 import ScanStatusBadge from "../components/ScanStatusBadge";
 import { ErrorPanel, LoadingPanel, StatePanel } from "../components/FeedbackState";
@@ -23,6 +23,7 @@ export default function ScanReportPage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
+  const [reportRefresh,setReportRefresh]=useState(0);
   const scanId = useMemo(() => parseScanId(id), [id]);
   const { scan, loading, error, polling, reload } = useScanPolling(scanId);
 
@@ -174,13 +175,13 @@ export default function ScanReportPage() {
         </div>
       )}
 
-      {scan.status === "COMPLETED" && <ReportDownload scanId={scan.id} />}
-      <Findings scan={scan} transient={transient} />
+      {scan.status === "COMPLETED" && <ReportDownload key={reportRefresh} scanId={scan.id} />}
+      <Findings scan={scan} transient={transient} onAssessmentSaved={()=>setReportRefresh(n=>n+1)} />
     </Shell>
   );
 }
 
-function Findings({ scan, transient }: { scan: ScanResponse; transient: boolean }) {
+function Findings({ scan, transient,onAssessmentSaved }: { scan: ScanResponse; transient: boolean;onAssessmentSaved:()=>void }) {
   if(scan.status==="CANCELLED")return <StatePanel title="Verificação cancelada"><p>Nenhuma varredura foi iniciada. O token do domínio continua válido para uma nova execução.</p></StatePanel>;
   if (scan.findings.length === 0) {
     if (scan.status === "COMPLETED") {
@@ -200,23 +201,7 @@ function Findings({ scan, transient }: { scan: ScanResponse; transient: boolean 
     );
   }
 
-  return (
-    <ul className="space-y-3">
-      {scan.findings.map((f) => (
-        <li key={f.id} className="rounded-xl border border-white/10 bg-panel p-4">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="font-medium">{f.title || f.owaspCategory}</span>
-            <SeverityBadge severity={f.severity} />
-          </div>
-          <p className="mb-2 text-sm text-slate-300">{f.description}</p>
-          {f.affectedUrl && <p className="mb-2 break-all text-xs text-slate-400">{f.affectedUrl}</p>}
-          <p className="text-xs text-slate-500">
-            CVSS {f.cvssScore.toFixed(1)} — {f.recommendation}
-          </p>
-        </li>
-      ))}
-    </ul>
-  );
+  return <ScanFindings findings={scan.findings} onAssessmentSaved={onAssessmentSaved}/>;
 }
 
 function Shell({ children }: { children: React.ReactNode }) {

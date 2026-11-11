@@ -20,6 +20,7 @@ export default function ScanComparisonPage(){
   useEffect(()=>{
     const controller=new AbortController();action.current?.abort();setResult(null);setError(null);setBusy(false);
     setHistory(null);setBaseline('');setCompared('');
+    setLoading(false);
     if(domainId===null)return;
     setLoading(true);
     getDomainHistory(domainId,controller.signal).then(scans=>{

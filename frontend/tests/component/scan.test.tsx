@@ -88,14 +88,14 @@ describe("Scans — interface real e respostas HTTP controladas", () => {
     expect(screen.getByText("Nenhuma vulnerabilidade encontrada")).toBeInTheDocument();
   });
 
-  test("SCAN-UI-06: renderiza achados e CVSS", async () => {
+  test("SCAN-UI-06: renderiza achados e identifica score ZAP aproximado", async () => {
     localStorage.setItem("websec_token", "qa-token");
     http.onGet("/scans/42").reply(200, { ...scan, status: "COMPLETED", findings: [{
       id: 1, owaspCategory: "A05", description: "Cabeçalho ausente", cvssScore: 5.5, severity: "MEDIUM", recommendation: "Configurar cabeçalho",
     }] });
     renderPage(<div />, "/scans/42");
     expect(await screen.findByText("Cabeçalho ausente")).toBeInTheDocument();
-    expect(screen.getByText(/CVSS 5.5/)).toHaveTextContent("Configurar cabeçalho");
+    expect(screen.getByText(/Score aproximado ZAP: 5.5/)).toHaveTextContent("Configurar cabeçalho");
   });
 
   test("SCAN-UI-08: relatório mostra o alvo executado com porta e caminho", async () => {
