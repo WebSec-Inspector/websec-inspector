@@ -49,7 +49,7 @@ class ScanListPostgresTest {
         return jdbc.queryForObject("INSERT INTO domains(user_id,hostname,verification_token) VALUES (?,?,?) RETURNING id",Long.class,u.getId(),UUID.randomUUID()+".example.invalid",UUID.randomUUID().toString());
     }
     private long scan(long domain,String state) {
-        return jdbc.queryForObject("INSERT INTO scans(domain_id,status,created_at) VALUES (?,?,'2026-01-01T12:00:00Z') RETURNING id",Long.class,domain,state);
+        return jdbc.queryForObject("INSERT INTO scans(domain_id,status,created_at,target_url) VALUES (?,?,'2026-01-01T12:00:00Z','https://example.invalid') RETURNING id",Long.class,domain,state);
     }
     private JsonNode list(String token,String query)throws Exception {
         return json.readTree(http.perform(get("/api/scans"+query).header("Authorization",token)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
