@@ -201,7 +201,7 @@ sessão anterior antes de enviar credenciais. A pendência sobrevive à recarga 
 impede renovação automática. Alterações de identidade em outra aba também
 invalidam requisições antigas antes de qualquer retry.
 
-Após migração 012, não remova hashes consumidos de famílias ainda válidas: eles
+Após migração 013, não remova hashes consumidos de famílias ainda válidas: eles
 detectam replay. Manutenção pode excluir famílias expiradas (`expires_at < now()`);
 as linhas de refresh são removidas por cascade. Não registre cookies/tokens/hashes.
 

@@ -6,7 +6,11 @@ import {api, login, logout} from '../../src/services/api';
 import {AuthProvider, useAuth} from '../../src/context/AuthContext';
 
 let http: MockAdapter;
-beforeEach(() => { http = new MockAdapter(api, {onNoMatch: 'throwException'}); localStorage.setItem('websec_token','expired'); });
+beforeEach(() => {
+  http = new MockAdapter(api, {onNoMatch: 'throwException'});
+  localStorage.setItem('websec_token','expired');
+  http.onGet('/users/me').reply(200,{id:1,name:'Alice',email:'alice@example.invalid',role:'CLIENTE'});
+});
 afterEach(() => {http.restore();});
 function Session() { const auth=useAuth(); return <><output>{auth.token ?? 'signed out'}</output><button onClick={auth.logout}>Logout</button></>; }
 const defer = <T,>() => {let resolve!: (v:T)=>void;const promise=new Promise<T>(r=>{resolve=r;});return {resolve,promise};};
@@ -19,7 +23,7 @@ test('401 refreshes with credentials and retries once using the rotated access t
   expect(screen.getByText('renewed')).toBeInTheDocument();
   expect(localStorage.getItem('websec_token')).toBe('renewed');
   expect(http.history.post).toHaveLength(1);
-  expect(http.history.get).toHaveLength(2);
+  expect(http.history.get.filter(request=>request.url==='/private')).toHaveLength(2);
 });
 
 test('concurrent and delayed 401 share one refresh, including requests answered after rotation', async () => {
@@ -65,7 +69,23 @@ test('logout clears locally immediately, fences late refresh and revokes after i
   expect(localStorage.getItem('websec_token')).toBeNull();
   await act(async()=>{refresh.resolve([200,{token:'too-late'}]);await result;});
   await vi.waitFor(()=>expect(http.history.post.filter(p=>p.url==='/auth/logout')).toHaveLength(1));
-  expect(localStorage.getItem('websec_token')).toBeNull();expect(http.history.get).toHaveLength(1);
+  expect(localStorage.getItem('websec_token')).toBeNull();expect(http.history.get.filter(request=>request.url==='/private')).toHaveLength(1);
+});
+
+test('a late profile from the previous identity cannot replace the current account or its role',async()=>{
+  const alice=defer<[number,object]>();
+  http.onGet('/users/me').reply(config=>config.headers?.Authorization==='Bearer bob'
+    ? [200,{id:2,name:'Bob',email:'bob@example.invalid',role:'CLIENTE'}] : alice.promise);
+  http.onPost('/auth/logout').reply(204,{});
+  http.onPost('/auth/login').reply(200,{token:'bob'});
+  function Profile(){const auth=useAuth();return <output>{auth.currentUser ? `${auth.currentUser.name}:${auth.currentUser.role}` : 'no profile'}</output>;}
+  render(<AuthProvider><Profile /></AuthProvider>);
+  await vi.waitFor(()=>expect(http.history.get.filter(r=>r.url==='/users/me')).toHaveLength(1));
+  await act(async()=>{await login('bob@example.invalid','password');});
+  expect(await screen.findByText('Bob:CLIENTE')).toBeInTheDocument();
+  await act(async()=>{alice.resolve([200,{id:1,name:'Alice',email:'alice@example.invalid',role:'ADMINISTRADOR'}]);});
+  expect(screen.getByText('Bob:CLIENTE')).toBeInTheDocument();
+  expect(screen.queryByText('Alice:ADMINISTRADOR')).not.toBeInTheDocument();
 });
 
 test('403 retains session and refresh failure clears it', async () => {
